@@ -2,7 +2,13 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mail Hub">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
 <title>Mail Hub</title>
 <meta name="theme-color" content="#0b0b0c">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0b0c'/%3E%3Cpath d='M7 11h18v11H7z' fill='none' stroke='%23d8c9a7' stroke-width='2'/%3E%3Cpath d='M7 11l9 6 9-6' fill='none' stroke='%23d8c9a7' stroke-width='2'/%3E%3C/svg%3E">
@@ -39,7 +45,14 @@
   header {
     display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px;
     padding: 24px 28px 8px; max-width: 1480px; margin: 0 auto;
+    padding-top: max(24px, calc(env(safe-area-inset-top) + 8px));
   }
+  .refresh {
+    margin-left: auto; align-self: center; border: 1px solid var(--line); background: transparent;
+    color: var(--muted); border-radius: 999px; width: 30px; height: 30px; font-size: 15px; cursor: pointer;
+  }
+  .refresh.spin { animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   h1 {
     margin: 0; font: 300 22px/1 Georgia, "Times New Roman", serif;
     letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
@@ -140,7 +153,7 @@
   @media (max-width: 1100px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 700px) {
     header, .filters { padding-left: 16px; padding-right: 16px; }
-    main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; }
+    main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px max(32px, calc(env(safe-area-inset-bottom) + 16px)); }
     .cal-grid, .cal .seg { display: none; }
     .agenda { display: block; }
   }
@@ -150,6 +163,7 @@
 <header>
   <h1>Mail Hub</h1>
   <div class="status" id="status">加载中…</div>
+  <button class="refresh" id="refresh" title="刷新">↻</button>
 </header>
 <div class="filters" id="filters"></div>
 <main id="main"></main>
@@ -445,6 +459,8 @@ function renderChrome() {
 }
 
 async function load() {
+  const btn = document.getElementById("refresh");
+  btn.classList.add("spin");
   try {
     const r = await fetch("api/dashboard", { cache: "no-store" });
     if (!r.ok) throw new Error(r.status);
@@ -453,8 +469,11 @@ async function load() {
     render();
   } catch (e) {
     document.getElementById("status").innerHTML = `<span class="err">加载失败 (${esc(e.message)})</span>`;
+  } finally {
+    btn.classList.remove("spin");
   }
 }
+document.getElementById("refresh").onclick = load;
 
 document.addEventListener("click", async e => {
   const wk = e.target.closest("[data-weeks]");

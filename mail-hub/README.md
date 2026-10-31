@@ -106,6 +106,13 @@ systemctl --user list-timers mail-hub-tick.timer
 journalctl --user -u mail-hub-tick -n 50
 ```
 
+### 7. 装到 iPhone 主屏幕
+
+1. 用 **Safari** 打开 `https://mail.altaran.xyz`，先完成 Cloudflare Access 登录。
+2. 点底部的分享按钮 → **添加到主屏幕**。
+
+之后从主屏幕打开就是全屏的 App，有自己的图标，右上角 ↻ 可以手动刷新，每次切回这个 App 也会自动刷新。Access 登录过期后会再要求你登录一次；有效期可以在 Access application 的 Session Duration 里调长，比如 1 个月。
+
 ## 常用
 
 | 命令 | 作用 |

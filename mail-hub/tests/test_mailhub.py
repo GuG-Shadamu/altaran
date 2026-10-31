@@ -313,6 +313,8 @@ class WebTest(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as ctx:
                 urllib.request.urlopen(f"http://127.0.0.1:{srv.server_port}/api/dashboard")
             self.assertEqual(ctx.exception.code, 403)
+            with urllib.request.urlopen(f"http://127.0.0.1:{srv.server_port}/manifest.webmanifest") as r:
+                self.assertEqual(json.load(r)["display"], "standalone")
         finally:
             srv.shutdown()
             srv.server_close()

@@ -13,6 +13,14 @@ log = logging.getLogger("mailhub.web")
 STATIC = Path(__file__).parent / "static"
 DAY_MS = 86400 * 1000
 
+# Home-screen icon and manifest: no personal data, and iOS may fetch them
+# without the Access cookie when adding the app to the home screen.
+PUBLIC_FILES = {
+    "/icon-180.png": "image/png",
+    "/icon-512.png": "image/png",
+    "/manifest.webmanifest": "application/manifest+json",
+}
+
 DONE_STATUSES = {"delivered", "cancelled", "returned", "refunded"}
 SHOP_ORDER = {"problem": 0, "out_for_delivery": 1, "shipped": 2, "ordered": 3}
 
@@ -178,9 +186,11 @@ def make_handler(cfg):
             return False
 
         def do_GET(self):
+            path = self.path.split("?")[0]
+            if path in PUBLIC_FILES:
+                return self._send(200, (STATIC / path.lstrip("/")).read_bytes(), PUBLIC_FILES[path])
             if not self._authorized():
                 return
-            path = self.path.split("?")[0]
             if path in ("/", "/index.html"):
                 return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
             if path == "/api/dashboard":
