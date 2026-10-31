@@ -39,6 +39,10 @@ class Config:
     discord_webhook: str
     about_me: str
     deal_interests: str
+    calendar_enabled: bool = True
+    calendar_days_back: int = 7
+    calendar_days_ahead: int = 60
+    calendar_exclude: list = field(default_factory=list)
     raw: dict = field(repr=False, default_factory=dict)
 
     def account(self, email):
@@ -60,6 +64,7 @@ def load(path=None):
     acc = web.get("access", {})
     disc = raw.get("discord", {})
     prefs = raw.get("prefs", {})
+    cal = raw.get("calendar", {})
 
     accounts = [Account(a["email"], a.get("label") or a["email"].split("@")[0])
                 for a in raw.get("accounts", [])]
@@ -84,5 +89,9 @@ def load(path=None):
         discord_webhook=os.environ.get(disc.get("webhook_url_env", "MAILHUB_DISCORD_WEBHOOK"), ""),
         about_me=prefs.get("about_me", ""),
         deal_interests=prefs.get("deal_interests", ""),
+        calendar_enabled=bool(cal.get("enabled", True)),
+        calendar_days_back=int(cal.get("days_back", 7)),
+        calendar_days_ahead=int(cal.get("days_ahead", 60)),
+        calendar_exclude=[x.lower() for x in cal.get("exclude", [])],
         raw=raw,
     )

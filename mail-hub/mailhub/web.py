@@ -30,6 +30,67 @@ def _row(r, labels, conn):
     }
 
 
+_WORD = re.compile(r"[a-z0-9]{3,}|[\u4e00-\u9fff]")
+
+
+def _words(s):
+    return set(_WORD.findall((s or "").lower()))
+
+
+def _ms(t):
+    return datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp() * 1000
+
+
+def same_thing(appt_time, appt_title, ev):
+    """Is a mail-extracted appointment the same as a calendar event?
+
+    Gmail often adds flights/hotels/reservations to Calendar itself, so the
+    same plan arrives twice. Timed: starts within 15 minutes. Date-only: same
+    day and the titles share at least two words (one shared city name is
+    not enough: "London trip" is not the "Marriott London" booking).
+    """
+    if not appt_time or not ev["start"]:
+        return False
+    if len(appt_time) > 10 and len(ev["start"]) > 10:
+        return abs(_ms(appt_time) - _ms(ev["start"])) <= 15 * 60 * 1000
+    if len(appt_time) == 10 and ev["start"][:10] == appt_time:
+        return len(_words(appt_title) & _words(ev["title"])) >= 2
+    return False
+
+
+def calendar_entries(cfg, conn, labels, appts):
+    """Calendar events plus mail appointments, one entry per real-world plan."""
+    entries, seen = [], set()
+    for e in conn.execute("SELECT * FROM events ORDER BY start, account").fetchall():
+        sig = (e["title"], e["start"])
+        if sig in seen:  # shared invite present in several of my calendars
+            continue
+        seen.add(sig)
+        entries.append({
+            "source": "calendar", "title": e["title"], "start": e["start"], "end": e["end"],
+            "all_day": bool(e["all_day"]), "location": e["location"], "url": e["url"],
+            "meet_url": e["meet_url"], "color": e["color"], "calendar": e["calendar_name"],
+            "account": e["account"], "account_label": labels.get(e["account"], e["account"]),
+        })
+    events = list(entries)
+    for it in appts:
+        if it["data"].get("status") == "cancelled" or not it["event_time"]:
+            continue
+        if any(same_thing(it["event_time"], it["title"], ev) for ev in events):
+            it["in_calendar"] = True
+            continue
+        end = it["data"].get("end")
+        entries.append({
+            "source": "mail", "title": it["title"], "start": it["event_time"],
+            "end": end if end and len(end) == len(it["event_time"]) else None,
+            "all_day": len(it["event_time"]) == 10, "location": it["data"].get("location"),
+            "url": it["url"], "kind": it["data"].get("kind"), "item_id": it["id"],
+            "account": it["account"], "account_label": it["account_label"],
+        })
+    entries.sort(key=lambda x: x["start"])
+    return entries
+
+
 def dashboard(cfg, conn):
     labels = {a.email: a.label for a in cfg.accounts}
     now = datetime.now(timezone.utc)
@@ -49,7 +110,9 @@ def dashboard(cfg, conn):
             return it["date"] > now_ms - 7 * DAY_MS
         return t >= (today if len(t) == 10 else cutoff)
 
-    appts = [i for i in q("appointment", 120) if upcoming(i)]
+    all_appts = q("appointment", 120)
+    calendar = calendar_entries(cfg, conn, labels, all_appts)
+    appts = [i for i in all_appts if upcoming(i)]
     appts.sort(key=lambda i: i["event_time"] or "9999")
 
     shop = [i for i in q("shopping", 45)
@@ -76,6 +139,7 @@ def dashboard(cfg, conn):
     pending = conn.execute("SELECT COUNT(*) FROM messages WHERE state = 0").fetchone()[0]
 
     return {"generated": now_ms, "timezone": cfg.tz.key, "accounts": accounts, "pending": pending,
+            "calendar": calendar,
             "sections": {"appointment": appts, "shopping": shop, "work": work,
                          "outreach": outreach, "deal": deals, "ad": ads}}
 

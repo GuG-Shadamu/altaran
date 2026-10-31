@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
 
-from mailhub import access, classify, db, demo, gmail, web
+from mailhub import access, calendar_sync, classify, db, demo, gmail, web
 from mailhub.config import Account, Config
 
 
@@ -147,6 +147,36 @@ class ItemTest(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT state FROM messages").fetchone()[0], 3)
 
 
+class CalendarTest(unittest.TestCase):
+    CAL = {"id": "primary", "summary": "Me", "backgroundColor": "#123456"}
+
+    def test_parse_event(self):
+        ev = {"id": "e1", "summary": "Dentist", "start": {"dateTime": "2026-11-13T10:00:00-05:00"},
+              "end": {"dateTime": "2026-11-13T11:00:00-05:00"}, "htmlLink": "u", "hangoutLink": "meet"}
+        r = calendar_sync.parse_event("a@gmail.com", self.CAL, ev)
+        self.assertEqual((r["start"], r["end"], r["all_day"], r["meet_url"]),
+                         ("2026-11-13T15:00:00Z", "2026-11-13T16:00:00Z", 0, "meet"))
+        r = calendar_sync.parse_event("a@gmail.com", self.CAL,
+                                      {"id": "e2", "start": {"date": "2026-11-13"}, "end": {"date": "2026-11-16"}})
+        self.assertEqual((r["start"], r["end"], r["all_day"], r["title"]), ("2026-11-13", "2026-11-16", 1, "(无标题)"))
+
+    def test_skip_cancelled_and_declined(self):
+        base = {"id": "e", "start": {"date": "2026-11-13"}, "end": {"date": "2026-11-14"}}
+        self.assertIsNone(calendar_sync.parse_event("a", self.CAL, {**base, "status": "cancelled"}))
+        declined = {**base, "attendees": [{"self": True, "responseStatus": "declined"}]}
+        self.assertIsNone(calendar_sync.parse_event("a", self.CAL, declined))
+
+    def test_same_thing(self):
+        ev = {"start": "2026-11-13T23:30:00Z", "title": "Flight to London"}
+        self.assertTrue(web.same_thing("2026-11-13T23:40:00Z", "AC 852 多伦多 → 伦敦", ev))
+        self.assertFalse(web.same_thing("2026-11-14T01:00:00Z", "AC 852", ev))
+        allday = {"start": "2026-11-15", "title": "Stay at Marriott London"}
+        self.assertTrue(web.same_thing("2026-11-15", "Marriott London 入住", allday))
+        self.assertFalse(web.same_thing("2026-11-15", "牙医", allday))
+        self.assertFalse(web.same_thing("2026-11-15", "Marriott London 入住",
+                                        {"start": "2026-11-15", "title": "London trip"}))
+
+
 # --- Cloudflare Access JWT -------------------------------------------------------
 
 def _is_prime(n):
@@ -262,6 +292,11 @@ class WebTest(unittest.TestCase):
         self.assertTrue(all(len(v) for v in secs.values()))
         # out_for_delivery and problem sort before shipped
         self.assertIn(secs["shopping"][0]["data"]["status"], ("problem", "out_for_delivery"))
+        # The demo flight is both a mail appointment and a calendar event: listed once.
+        flights = [e for e in data["calendar"] if "852" in e["title"]]
+        self.assertEqual([e["source"] for e in flights], ["calendar"])
+        self.assertTrue(any(i.get("in_calendar") for i in secs["appointment"]))
+        self.assertTrue(any(e["source"] == "mail" for e in data["calendar"]))
         target = secs["work"][0]["id"]
 
         self.assertEqual(self.req(f"/api/items/{target}/done", "POST")[0], 400)  # no CSRF header

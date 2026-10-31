@@ -1,7 +1,7 @@
 """mail-hub CLI.
 
-  python3 -m mailhub auth <email>   authorize one Gmail account (read-only)
-  python3 -m mailhub tick           sync + classify + notify (run by the systemd timer)
+  python3 -m mailhub auth <email>   authorize one account (Gmail + Calendar, read-only)
+  python3 -m mailhub tick           sync mail + calendars, classify, notify (systemd timer)
   python3 -m mailhub serve          run the dashboard
   python3 -m mailhub status         per-account sync state and counts
   python3 -m mailhub demo           fill a throwaway DB with sample data to preview the page
@@ -11,7 +11,7 @@ import fcntl
 import logging
 import sys
 
-from . import classify, config, db, notify, sync
+from . import calendar_sync, classify, config, db, notify, sync
 
 
 def cmd_auth(cfg, args):
@@ -32,6 +32,7 @@ def cmd_tick(cfg, args):
     conn = db.connect(cfg.db_path)
     if not args.no_sync:
         sync.sync_all(cfg, conn)
+        calendar_sync.sync_all(cfg, conn)
     stats = classify.classify_pending(cfg, conn)
     logging.info("classify: %s", stats)
     sent = notify.run(cfg, conn)
@@ -57,6 +58,8 @@ def cmd_status(cfg, args):
         print(f"messages {label:10} {n}")
     for r in conn.execute("SELECT category, COUNT(*) n FROM items WHERE user_state = 'open' GROUP BY category"):
         print(f"items    {r['category']:10} {r['n']}")
+    for r in conn.execute("SELECT account, COUNT(*) n FROM events GROUP BY account"):
+        print(f"events   {r['account']:32} {r['n']}")
 
 
 def cmd_demo(cfg, args):

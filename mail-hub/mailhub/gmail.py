@@ -19,10 +19,13 @@ import urllib.request
 from email.utils import parseaddr
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
+SCOPES = f"{GMAIL_SCOPE} {CALENDAR_SCOPE}"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 API = "https://gmail.googleapis.com/gmail/v1/users/me"
+CAL_API = "https://www.googleapis.com/calendar/v3"
 
 
 class GmailError(Exception):
@@ -98,7 +101,7 @@ def authorize(cfg, email):
 
     url = AUTH_URL + "?" + urllib.parse.urlencode({
         "client_id": client_id, "redirect_uri": redirect, "response_type": "code",
-        "scope": SCOPE, "access_type": "offline", "prompt": "consent",
+        "scope": SCOPES, "include_granted_scopes": "true", "access_type": "offline", "prompt": "consent",
         "login_hint": email, "state": state,
         "code_challenge": challenge, "code_challenge_method": "S256",
     })
@@ -125,12 +128,18 @@ def authorize(cfg, email):
 
     g = Gmail(cfg, email, token={"refresh_token": tok["refresh_token"],
                                  "access_token": tok["access_token"],
+                                 "scope": tok.get("scope", ""),
                                  "expires_at": time.time() + tok.get("expires_in", 3600) - 60})
     actual = g.profile()["emailAddress"]
     if actual.lower() != email.lower():
         raise SystemExit(f"授权的是 {actual}，不是 {email}。请用正确的账号重新授权。")
     _save_token(cfg, email, g.token)
-    print(f"✓ {email} 已授权")
+    missing = [n for s, n in ((GMAIL_SCOPE, "Gmail"), (CALENDAR_SCOPE, "Calendar"))
+               if s not in g.token["scope"]]
+    if missing:
+        print(f"⚠ {email} 已授权，但没有勾选：{', '.join(missing)}。需要的话重新跑一次 auth 并勾上。")
+    else:
+        print(f"✓ {email} 已授权（Gmail + Calendar，只读）")
 
 
 # --- API client --------------------------------------------------------------
@@ -157,8 +166,12 @@ class Gmail:
         _save_token(self.cfg, self.email, self.token)
         return self.token["access_token"]
 
-    def _get(self, path, **params):
-        url = f"{API}/{path}"
+    def has_scope(self, scope):
+        # Tokens from before calendar support carry no "scope" field: Gmail only.
+        return scope in self.token.get("scope", GMAIL_SCOPE)
+
+    def _get(self, path, base=API, **params):
+        url = f"{base}/{path}"
         if params:
             url += "?" + urllib.parse.urlencode(params, doseq=True)
         for attempt in range(4):
@@ -213,6 +226,23 @@ class Gmail:
 
     def message(self, msg_id):
         return self._get(f"messages/{msg_id}", format="full")
+
+    def calendars(self):
+        return self._get("users/me/calendarList", base=CAL_API, minAccessRole="reader").get("items", [])
+
+    def events(self, calendar_id, time_min, time_max):
+        out, page = [], None
+        while True:
+            params = {"timeMin": time_min, "timeMax": time_max, "singleEvents": "true",
+                      "orderBy": "startTime", "maxResults": 250}
+            if page:
+                params["pageToken"] = page
+            r = self._get(f"calendars/{urllib.parse.quote(calendar_id, safe='')}/events",
+                          base=CAL_API, **params)
+            out += r.get("items", [])
+            page = r.get("nextPageToken")
+            if not page or len(out) > 2000:
+                return out
 
 
 # --- parsing -----------------------------------------------------------------

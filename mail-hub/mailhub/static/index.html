@@ -106,10 +106,43 @@
   .ads .card .s { display: none; }
   .ads.collapsed .list > :nth-child(n+6) { display: none; }
   .reply { color: var(--high); }
+  .cal { grid-column: 1 / -1; }
+  .seg { margin-left: auto; display: flex; gap: 4px; }
+  .seg button {
+    border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px;
+    padding: 1px 8px; font: inherit; font-size: 11.5px; cursor: pointer;
+  }
+  .seg button.on { color: var(--ink); border-color: var(--gold); }
+  .cal-grid {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  }
+  .cal-grid .wh { background: var(--panel); color: var(--faint); font-size: 11px; text-align: center; padding: 4px 0; }
+  .day { background: var(--card); min-height: 96px; padding: 5px 5px 6px; min-width: 0; }
+  .day.past { opacity: .45; }
+  .day .dn { font-size: 12px; color: var(--muted); margin: 0 2px 4px; }
+  .day.today { box-shadow: inset 0 0 0 1px var(--gold); }
+  .day.today .dn { color: var(--gold); font-weight: 600; }
+  .ev {
+    display: block; font-size: 11.5px; line-height: 1.4; padding: 1px 5px; margin-bottom: 2px;
+    border-radius: 4px; border-left: 3px solid var(--c, var(--gold)); background: var(--chip);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none;
+  }
+  .ev.allday { background: color-mix(in srgb, var(--c, var(--gold)) 22%, transparent); }
+  .ev .tm { color: var(--muted); margin-right: 4px; font-variant-numeric: tabular-nums; }
+  .ev .src { color: var(--faint); margin-left: 4px; }
+  .agenda { display: none; }
+  .agenda .ad { color: var(--muted); font-size: 12px; margin: 12px 2px 4px; }
+  .agenda .ad:first-child { margin-top: 0; }
+  .agenda .ad.today { color: var(--gold); font-weight: 600; }
+  .agenda .ev { white-space: normal; font-size: 13px; padding: 6px 8px; margin-bottom: 4px; }
+  .agenda .ev .loc { display: block; color: var(--muted); font-size: 11.5px; }
   @media (max-width: 1100px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 700px) {
     header, .filters { padding-left: 16px; padding-right: 16px; }
     main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; }
+    .cal-grid, .cal .seg { display: none; }
+    .agenda { display: block; }
   }
 </style>
 </head>
@@ -124,6 +157,7 @@
 <script>
 const SECTIONS = [
   ["focus", "今天需要关注"],
+  ["calendar", "🗓️ 日历"],
   ["appointment", "📅 预约 & 行程"],
   ["shopping", "📦 购物 & 到货"],
   ["work", "💼 工作对话"],
@@ -141,6 +175,7 @@ const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
 let state = null;
 let filter = localGet("filter") || "all";
 let adsOpen = false;
+let calWeeks = Number(localGet("calWeeks")) || 2;
 
 function localGet(k) { try { return localStorage.getItem("mailhub." + k); } catch { return null; } }
 function localSet(k, v) { try { localStorage.setItem("mailhub." + k, v); } catch {} }
@@ -213,6 +248,7 @@ const RENDER = {
       `<span>${KIND_ICON[d.kind] || "📌"}</span>`,
       w ? `<span class="chip ${dayDiff(w) <= 1 ? "high" : ""}">${relDay(w)}${w.dateOnly ? "" : " " + w.hm}</span>` : "",
       statusChip,
+      it.in_calendar ? `<span class="chip">📆 已在日历</span>` : "",
       d.location ? `<span>${esc(d.location)}</span>` : "",
       d.confirmation ? `<span>#${esc(d.confirmation)}</span>` : "",
       acct(it),
@@ -291,6 +327,83 @@ function focusItems(sections) {
   return out.slice(0, 9);
 }
 
+// --- calendar -----------------------------------------------------------------
+function ymd(w) { return `${w.y}-${String(w.m).padStart(2, "0")}-${String(w.d).padStart(2, "0")}`; }
+function addDays(day, n) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+function dayParts(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return { y, m, d, wd: new Date(Date.UTC(y, m - 1, d)).getUTCDay() };
+}
+
+// Bucket entries by local day. All-day entries span start..end (end exclusive).
+function bucket(entries) {
+  const days = {};
+  const put = (day, e) => (days[day] ??= []).push(e);
+  for (const e of entries) {
+    const w = parseWhen(e.start);
+    if (!w) continue;
+    const first = ymd(w);
+    if (e.all_day) {
+      const last = e.end && e.end.length === 10 ? addDays(e.end, -1) : first;
+      for (let d = first, i = 0; d <= last && i < 31; d = addDays(d, 1), i++) put(d, { ...e, hm: "" });
+    } else {
+      put(first, { ...e, hm: w.hm });
+    }
+  }
+  for (const list of Object.values(days)) list.sort((a, b) => (a.hm || "").localeCompare(b.hm || ""));
+  return days;
+}
+
+function evHtml(e, withLoc) {
+  const icon = e.source === "mail" ? (KIND_ICON[e.kind] || "✉️") + " " : "";
+  const tip = [e.title, e.hm, e.location, e.calendar, e.account_label].filter(Boolean).join(" · ");
+  const style = e.color ? ` style="--c:${esc(e.color)}"` : "";
+  return `<a class="ev ${e.all_day ? "allday" : ""}" href="${esc(e.meet_url || e.url || "#")}" target="_blank" rel="noopener" title="${esc(tip)}"${style}>`
+    + (e.hm ? `<span class="tm">${e.hm}</span>` : "") + icon + esc(e.title)
+    + (withLoc && e.location ? `<span class="loc">${esc(e.location)}</span>` : "")
+    + (withLoc ? `<span class="src">${esc(e.account_label)}</span>` : "") + `</a>`;
+}
+
+function renderCalendar(entries) {
+  const days = bucket(entries);
+  const today = ymd(zoned(new Date()));
+  const monday = addDays(today, -((dayParts(today).wd + 6) % 7));
+
+  let grid = ["一", "二", "三", "四", "五", "六", "日"].map(w => `<div class="wh">${w}</div>`).join("");
+  for (let i = 0; i < calWeeks * 7; i++) {
+    const day = addDays(monday, i);
+    const p = dayParts(day);
+    const label = p.d === 1 || i === 0 ? `${p.m}/${p.d}` : p.d;
+    const evs = days[day] || [];
+    grid += `<div class="day ${day === today ? "today" : day < today ? "past" : ""}">
+      <div class="dn">${label}</div>${evs.map(e => evHtml(e, false)).join("")}</div>`;
+  }
+
+  let agenda = "", shown = 0;
+  for (let i = 0; i < 21 && shown < 40; i++) {
+    const day = addDays(today, i);
+    const evs = days[day];
+    if (!evs) continue;
+    const p = dayParts(day);
+    const rel = i === 0 ? "今天 · " : i === 1 ? "明天 · " : "";
+    agenda += `<div class="ad ${i === 0 ? "today" : ""}">${rel}${p.m}月${p.d}日 周${WEEK[p.wd]}</div>`
+      + evs.map(e => evHtml(e, true)).join("");
+    shown += evs.length;
+  }
+
+  const upcoming = entries.filter(e => (e.end || e.start) >= today).length;
+  return `<section class="cal">
+    <h2>🗓️ 日历 <span class="n">${upcoming}</span>
+      <span class="seg">${[2, 5].map(n => `<button class="${n === calWeeks ? "on" : ""}" data-weeks="${n}">${n} 周</button>`).join("")}</span>
+    </h2>
+    <div class="cal-grid">${grid}</div>
+    <div class="agenda">${agenda || `<div class="empty">接下来三周没有安排</div>`}</div>
+  </section>`;
+}
+
 function render() {
   if (!state) return;
   const keep = it => filter === "all" || it.account === filter;
@@ -299,6 +412,7 @@ function render() {
   sections.focus = focusItems(sections);
 
   document.getElementById("main").innerHTML = SECTIONS.map(([key, name]) => {
+    if (key === "calendar") return renderCalendar(state.calendar.filter(keep));
     const items = sections[key];
     if (key === "focus" && !items.length) return "";
     const render = key === "focus" ? it => RENDER[it.category](it) : RENDER[key];
@@ -343,6 +457,8 @@ async function load() {
 }
 
 document.addEventListener("click", async e => {
+  const wk = e.target.closest("[data-weeks]");
+  if (wk) { calWeeks = Number(wk.dataset.weeks); localSet("calWeeks", calWeeks); render(); return; }
   const f = e.target.closest("[data-filter]");
   if (f) { filter = f.dataset.filter; localSet("filter", filter); renderChrome(); render(); return; }
   const d = e.target.closest("[data-done]");

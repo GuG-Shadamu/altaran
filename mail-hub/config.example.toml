@@ -45,6 +45,14 @@ model = "claude-haiku-5-5"
 url = "http://127.0.0.1:11434"
 model = "qwen3:8b"
 
+[calendar]
+# 同步每个账号的 Google Calendar（只读），跟邮件里提取的预约一起显示
+enabled = true
+days_back = 7
+days_ahead = 60
+# 不想看的日历，填日历名或日历 ID（生日、节假日这类自动日历已默认跳过）
+exclude = []
+
 [web]
 host = "127.0.0.1"
 port = 8095

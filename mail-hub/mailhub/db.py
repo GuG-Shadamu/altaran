@@ -52,6 +52,24 @@ CREATE TABLE IF NOT EXISTS items (
     reminded    INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS items_cat ON items(category, user_state);
+
+-- Google Calendar events, replaced wholesale per account on every sync.
+CREATE TABLE IF NOT EXISTS events (
+    id            TEXT NOT NULL,
+    account       TEXT NOT NULL,
+    calendar_id   TEXT NOT NULL,
+    calendar_name TEXT,
+    color         TEXT,
+    title         TEXT,
+    start         TEXT,      -- UTC ISO, or YYYY-MM-DD for all-day
+    end           TEXT,      -- exclusive for all-day events
+    all_day       INTEGER DEFAULT 0,
+    location      TEXT,
+    url           TEXT,
+    meet_url      TEXT,
+    PRIMARY KEY (account, calendar_id, id)
+);
+CREATE INDEX IF NOT EXISTS events_start ON events(start);
 """
 
 # Categories the item can be reopened in when a newer email arrives after "done".

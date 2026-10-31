@@ -8,13 +8,14 @@
 - 🤝 工作 reach-out（猎头、合作邀约）
 - 🏷️ 值得关注的 deal（按 `config.toml` 里写的兴趣挑）
 - 📣 广告（只留最近 3 天，默认折叠）
+- 🗓️ 日历：6 个账号的 Google Calendar 加上邮件里提取的预约，合成一个周视图（手机上是按天的列表）。Gmail 自己已经加进日历的航班、酒店不会重复显示，预约卡片上会标"已在日历"
 
 顶部"今天需要关注"会自动挑出：24 小时内的安排、派送中或有问题的包裹、高优先级的待回复和快过期的 deal。
 
 ## 架构
 
 ```
-6 个 Gmail ──Gmail API (只读)──▶ mail-hub tick（systemd timer，每 15 分钟）
+6 个账号 ──Gmail + Calendar API (只读)──▶ mail-hub tick（systemd timer，每 15 分钟）
                                  │ 规则先过滤（垃圾、社交、自己发的）
                                  │ claude -p 批量分类 + 提取字段
                                  ▼
@@ -55,7 +56,7 @@ python3 -m mailhub --config /tmp/demo.toml demo && python3 -m mailhub --config /
 ### 3. Google OAuth（只需要做一次）
 
 1. https://console.cloud.google.com 新建项目 `mail-hub`。
-2. **APIs & Services → Library** 里搜索 Gmail API，点 Enable。
+2. **APIs & Services → Library** 里搜索并 Enable 两个 API：**Gmail API** 和 **Google Calendar API**。
 3. **OAuth consent screen**（Google Auth Platform）：User type 选 External，填应用名，然后把 5–6 个邮箱都加到 **Test users**。
 4. **Audience → Publish app**，切到 *In production*。不切的话 refresh token 7 天就过期。个人自用不需要提交审核，授权时会出现"Google 尚未验证此应用"的提示，点"继续"即可。
 5. **Clients → Create client → Desktop app**，下载 JSON，保存为 `~/.config/mail-hub/client_secret.json`（权限 `chmod 600`）。
@@ -65,7 +66,7 @@ python3 -m mailhub --config /tmp/demo.toml demo && python3 -m mailhub --config /
 cd ~/Git/mail-hub && python3 -m mailhub auth you@gmail.com
 ```
 
-终端会打印一个链接。在浏览器里打开，用对应的账号登录并授权。如果浏览器不在 Air 上，授权后跳转到 `127.0.0.1` 的页面会打不开，这时把地址栏里的完整 URL 粘回终端即可。
+终端会打印一个链接。在浏览器里打开，用对应的账号登录，**Gmail 和 Calendar 两项都要勾上**（都是只读）。如果浏览器不在 Air 上，授权后跳转到 `127.0.0.1` 的页面会打不开，这时把地址栏里的完整 URL 粘回终端即可。
 
 ### 4. Claude 订阅 token
 

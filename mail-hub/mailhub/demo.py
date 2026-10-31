@@ -69,6 +69,26 @@ def seed(cfg):
             "priority": prio, "data": data, "event_time": ev, "message_id": f"demo{n}",
             "thread_id": f"demo{n}", "last_date": ms - hours_ago * h,
         })
+    monday = today - timedelta(days=today.weekday())
+    events = [
+        # Same flight Gmail already put on the calendar: should show once.
+        ("AC 852 Toronto to London", today + timedelta(days=1, hours=18, minutes=30), 7.5, False, a[0], "#d8c9a7"),
+        ("1:1 with Lisa", today + timedelta(hours=11), 0.5, False, a2, "#7aa6d8"),
+        ("Team standup", monday + timedelta(days=7, hours=9, minutes=30), 0.25, False, a2, "#7aa6d8"),
+        ("Gym", today + timedelta(days=3, hours=7), 1, False, a[0], "#9cc5a1"),
+        ("妈妈生日晚饭", today + timedelta(days=5, hours=18, minutes=30), 2, False, a[0], "#e8a87c"),
+        ("London trip", today + timedelta(days=2), 4, True, a[0], "#d8c9a7"),
+        ("Quarterly planning", monday + timedelta(days=9, hours=13), 2, False, a2, "#7aa6d8"),
+    ]
+    for i, (title, start, hours, all_day, acct, color) in enumerate(events):
+        conn.execute(
+            """INSERT INTO events (id, account, calendar_id, calendar_name, color, title, start, end,
+                                   all_day, location, url, meet_url)
+               VALUES (?, ?, 'primary', ?, ?, ?, ?, ?, ?, NULL, 'https://calendar.google.com', NULL)""",
+            (f"demo{i}", acct, "Work" if acct == a2 else "Personal", color, title,
+             start.date().isoformat() if all_day else _iso(start),
+             (start + timedelta(days=hours)).date().isoformat() if all_day else _iso(start + timedelta(hours=hours)),
+             int(all_day)))
     for x in a:
         db.save_account_state(conn, x, history_id="demo")
     conn.commit()
