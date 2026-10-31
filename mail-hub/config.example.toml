@@ -1,0 +1,67 @@
+# 复制到 ~/.config/mail-hub/config.toml 再改。
+# 这个文件里不放任何密钥：token 在 token_dir，密钥走 ~/.config/mail-hub/env。
+
+[general]
+db_path = "~/.local/share/mail-hub/mailhub.db"
+timezone = "America/Toronto"
+# 第一次同步往回拉多少天、每个账号最多多少封
+lookback_days = 14
+max_initial_messages = 300
+
+# 每个邮箱一段。label 会显示在 dashboard 上。
+[[accounts]]
+email = "you@gmail.com"
+label = "主号"
+
+[[accounts]]
+email = "you.work@gmail.com"
+label = "工作"
+
+[google]
+# Google Cloud Console 下载的 OAuth Client（Desktop app）JSON
+client_secrets = "~/.config/mail-hub/client_secret.json"
+token_dir = "~/.config/mail-hub/tokens"
+
+[llm]
+# claude_cli：用 Claude 订阅（claude -p），不额外花钱
+# anthropic ：Anthropic API，按量付费，需要 ANTHROPIC_API_KEY
+# ollama    ：本地模型
+backend = "claude_cli"
+batch_size = 12
+# 每次 tick 最多处理多少封邮件，限制单次耗时和额度
+max_messages_per_tick = 120
+
+[llm.claude_cli]
+# systemd 里 PATH 很短，写完整路径最稳：`which claude`
+command = "claude"
+model = "haiku"
+timeout = 300
+
+[llm.anthropic]
+api_key_env = "ANTHROPIC_API_KEY"
+model = "claude-haiku-5-5"
+
+[llm.ollama]
+url = "http://127.0.0.1:11434"
+model = "qwen3:8b"
+
+[web]
+host = "127.0.0.1"
+port = 8095
+
+[web.access]
+# 跟 workbench 一样：只接受带有效 Cloudflare Access JWT 的请求。
+# 本机调试时可以改成 false。
+required = true
+team = "altaranlab"
+aud = ""            # Access application 的 Application Audience (AUD) Tag
+emails = ["you@gmail.com"]
+
+[discord]
+# webhook URL 放在 env 文件里，这里只写变量名
+webhook_url_env = "MAILHUB_DISCORD_WEBHOOK"
+
+[prefs]
+# 给 AI 的背景，帮它判断什么是"认真的工作对话"和"值得关注的 deal"
+about_me = "（一两句：做什么工作、住在哪、常去哪。例如：工程师，住多伦多，常飞温哥华）"
+deal_interests = "（例如：多伦多出发的机票和酒店、信用卡开卡奖励、Costco、电子产品、我买过的东西降价）"

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mail Hub</title>
+<meta name="theme-color" content="#0b0b0c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230b0b0c'/%3E%3Cpath d='M7 11h18v11H7z' fill='none' stroke='%23d8c9a7' stroke-width='2'/%3E%3Cpath d='M7 11l9 6 9-6' fill='none' stroke='%23d8c9a7' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0b0c;
+    --panel: #141416;
+    --card: #1a1a1d;
+    --ink: #ece8df;
+    --muted: #8a867d;
+    --faint: #5c5953;
+    --gold: #d8c9a7;
+    --line: rgba(236, 232, 223, .09);
+    --high: #e8a87c;
+    --ok: #9cc5a1;
+    --warn: #e6c56f;
+    --bad: #e08a8a;
+    --chip: rgba(236, 232, 223, .07);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f6f4ef; --panel: #ffffff; --card: #fbfaf7; --ink: #1d1c1a; --muted: #6f6b63;
+      --faint: #a29d93; --gold: #8a6d2f; --line: rgba(29, 28, 26, .1); --high: #b75a21;
+      --ok: #3f7d4a; --warn: #8f6b00; --bad: #b23b3b; --chip: rgba(29, 28, 26, .06);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  header {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px;
+    padding: 24px 28px 8px; max-width: 1480px; margin: 0 auto;
+  }
+  h1 {
+    margin: 0; font: 300 22px/1 Georgia, "Times New Roman", serif;
+    letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
+  }
+  .status { color: var(--muted); font-size: 12px; }
+  .status .err { color: var(--bad); }
+  .filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 28px 0; max-width: 1480px; margin: 0 auto; }
+  .filters button {
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 3px 12px; font: inherit; font-size: 12px; cursor: pointer;
+  }
+  .filters button.on { color: var(--ink); border-color: var(--gold); }
+  main {
+    display: grid; gap: 16px; padding: 16px 28px 40px; max-width: 1480px; margin: 0 auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .focus { grid-column: 1 / -1; }
+  section {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 14px 10px; min-width: 0;
+  }
+  section h2 {
+    display: flex; align-items: center; gap: 8px; margin: 0 2px 10px;
+    font-size: 13px; font-weight: 600; letter-spacing: .04em;
+  }
+  section h2 .n { color: var(--faint); font-weight: 400; }
+  section h2 .toggle { margin-left: auto; color: var(--muted); font-weight: 400; cursor: pointer; font-size: 12px; background: none; border: 0; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .focus .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .empty { color: var(--faint); font-size: 12px; padding: 6px 2px 10px; }
+  .card {
+    position: relative; display: flex; gap: 12px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .card.high { border-color: color-mix(in srgb, var(--high) 45%, transparent); }
+  .card .body { min-width: 0; flex: 1; }
+  .card .t { font-weight: 550; overflow-wrap: anywhere; }
+  .card .t a { text-decoration: none; }
+  .card .t a:hover { text-decoration: underline; }
+  .card .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .card .s { color: var(--muted); font-size: 12.5px; margin-top: 4px; overflow-wrap: anywhere; }
+  .chip { background: var(--chip); border-radius: 999px; padding: 0 8px; font-size: 11.5px; white-space: nowrap; }
+  .chip.high { color: var(--high); }
+  .chip.ok { color: var(--ok); }
+  .chip.warn { color: var(--warn); }
+  .chip.bad { color: var(--bad); }
+  .acct { color: var(--faint); }
+  .done-btn {
+    flex: none; align-self: flex-start; width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--line); background: transparent; color: var(--faint); cursor: pointer; font-size: 13px;
+  }
+  .done-btn:hover { color: var(--ok); border-color: var(--ok); }
+  .date {
+    flex: none; width: 50px; text-align: center; border-right: 1px solid var(--line); padding-right: 10px;
+  }
+  .date .d { font: 300 22px/1.1 Georgia, serif; color: var(--gold); }
+  .date .m, .date .w { font-size: 11px; color: var(--muted); }
+  .cancelled .t { text-decoration: line-through; color: var(--muted); }
+  .steps { display: flex; gap: 3px; margin-top: 6px; }
+  .steps i { height: 3px; flex: 1; border-radius: 2px; background: var(--chip); }
+  .steps i.on { background: var(--gold); }
+  .steps.bad i.on { background: var(--bad); }
+  .ads .card { padding: 6px 10px; }
+  .ads .card .s { display: none; }
+  .ads.collapsed .list > :nth-child(n+6) { display: none; }
+  .reply { color: var(--high); }
+  @media (max-width: 1100px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 700px) {
+    header, .filters { padding-left: 16px; padding-right: 16px; }
+    main { grid-template-columns: minmax(0, 1fr); padding: 12px 16px 32px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mail Hub</h1>
+  <div class="status" id="status">加载中…</div>
+</header>
+<div class="filters" id="filters"></div>
+<main id="main"></main>
+
+<script>
+const SECTIONS = [
+  ["focus", "今天需要关注"],
+  ["appointment", "📅 预约 & 行程"],
+  ["shopping", "📦 购物 & 到货"],
+  ["work", "💼 工作对话"],
+  ["outreach", "🤝 工作 Reach-out"],
+  ["deal", "🏷️ 值得关注的 Deal"],
+  ["ad", "📣 广告"],
+];
+const SHOP_STEPS = ["ordered", "shipped", "out_for_delivery", "delivered"];
+const SHOP_LABEL = { ordered: "已下单", shipped: "已发货", out_for_delivery: "派送中", delivered: "已送达",
+  problem: "有问题", cancelled: "已取消", returned: "已退货", refunded: "已退款" };
+const KIND_ICON = { flight: "✈️", hotel: "🏨", car: "🚗", restaurant: "🍽️", medical: "🩺",
+  meeting: "👥", event: "🎟️", service: "🔧", other: "📌" };
+const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
+
+let state = null;
+let filter = localGet("filter") || "all";
+let adsOpen = false;
+
+function localGet(k) { try { return localStorage.getItem("mailhub." + k); } catch { return null; } }
+function localSet(k, v) { try { localStorage.setItem("mailhub." + k, v); } catch {} }
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Event times are UTC ISO strings, or plain YYYY-MM-DD dates (no time known).
+// Everything is shown in the server's configured timezone, not the browser's.
+let fmt = null;
+function zoned(date) {
+  fmt ??= new Intl.DateTimeFormat("en-CA", { timeZone: state.timezone, year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", weekday: "short" });
+  const p = Object.fromEntries(fmt.formatToParts(date).map(x => [x.type, x.value]));
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
+  return { y: +p.year, m: +p.month, d: +p.day, wd, hm: `${p.hour}:${p.minute}` };
+}
+function parseWhen(t) {
+  if (!t) return null;
+  if (t.length === 10) {
+    const [y, m, d] = t.split("-").map(Number);
+    return { y, m, d, wd: new Date(Date.UTC(y, m - 1, d)).getUTCDay(), hm: "", dateOnly: true };
+  }
+  return { ...zoned(new Date(t)), dateOnly: false };
+}
+function dayDiff(w) {
+  const t = zoned(new Date());
+  return Math.round((Date.UTC(w.y, w.m - 1, w.d) - Date.UTC(t.y, t.m - 1, t.d)) / 86400000);
+}
+function relDay(w) {
+  const n = dayDiff(w);
+  if (n === 0) return "今天";
+  if (n === 1) return "明天";
+  if (n === -1) return "昨天";
+  if (n > 1 && n < 7) return `${n} 天后`;
+  return `${w.m}/${w.d}`;
+}
+function ago(ms) {
+  const m = Math.round((Date.now() - ms) / 60000);
+  if (m < 1) return "刚刚";
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  return `${Math.round(h / 24)} 天前`;
+}
+
+function cardShell(it, inner, opts = {}) {
+  const cls = ["card", it.priority === "high" ? "high" : "", opts.cls || ""].join(" ");
+  return `<div class="${cls}" data-id="${it.id}">${opts.left || ""}
+    <div class="body">
+      <div class="t"><a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
+      ${inner}
+    </div>
+    <button class="done-btn" title="完成 / 隐藏" data-done="${it.id}">✓</button>
+  </div>`;
+}
+function meta(parts) { return `<div class="meta">${parts.filter(Boolean).join("")}</div>`; }
+function acct(it) { return `<span class="acct">${esc(it.account_label)}</span>`; }
+function summary(it) { return it.summary ? `<div class="s">${esc(it.summary)}</div>` : ""; }
+
+const RENDER = {
+  appointment(it) {
+    const w = parseWhen(it.event_time || it.data.start);
+    const d = it.data;
+    const left = w ? `<div class="date"><div class="m">${w.m}月</div><div class="d">${w.d}</div><div class="w">周${WEEK[w.wd]}</div></div>` : "";
+    const statusChip = d.status === "cancelled" ? `<span class="chip bad">已取消</span>`
+      : d.status === "changed" ? `<span class="chip warn">有变更</span>` : "";
+    return cardShell(it, meta([
+      `<span>${KIND_ICON[d.kind] || "📌"}</span>`,
+      w ? `<span class="chip ${dayDiff(w) <= 1 ? "high" : ""}">${relDay(w)}${w.dateOnly ? "" : " " + w.hm}</span>` : "",
+      statusChip,
+      d.location ? `<span>${esc(d.location)}</span>` : "",
+      d.confirmation ? `<span>#${esc(d.confirmation)}</span>` : "",
+      acct(it),
+    ]) + summary(it), { left, cls: d.status === "cancelled" ? "cancelled" : "" });
+  },
+  shopping(it) {
+    const d = it.data;
+    const idx = SHOP_STEPS.indexOf(d.status);
+    const bad = ["problem", "cancelled", "returned", "refunded"].includes(d.status);
+    const eta = parseWhen(it.event_time || d.eta);
+    const chipCls = d.status === "delivered" ? "ok" : bad ? "bad" : d.status === "out_for_delivery" ? "high" : "";
+    const steps = idx >= 0 || bad
+      ? `<div class="steps ${bad ? "bad" : ""}">${SHOP_STEPS.map((_, i) => `<i class="${bad || i <= idx ? "on" : ""}"></i>`).join("")}</div>` : "";
+    return cardShell(it, meta([
+      d.merchant ? `<span>${esc(d.merchant)}</span>` : "",
+      d.status ? `<span class="chip ${chipCls}">${SHOP_LABEL[d.status] || esc(d.status)}</span>` : "",
+      eta && d.status !== "delivered" ? `<span>预计 ${relDay(eta)}</span>` : "",
+      d.carrier ? `<span>${esc(d.carrier)}</span>` : "",
+      acct(it),
+    ]) + summary(it) + steps);
+  },
+  work(it) {
+    const d = it.data;
+    return cardShell(it, meta([
+      d.needs_reply ? `<span class="chip high">待我回复</span>` : "",
+      d.person ? `<span>${esc(d.person)}</span>` : "",
+      `<span>${ago(it.date)}</span>`,
+      acct(it),
+    ]) + summary(it));
+  },
+  outreach(it) {
+    const d = it.data;
+    const who = [d.person, d.company].filter(Boolean).join(" · ");
+    return cardShell(it, meta([
+      who ? `<span>${esc(who)}</span>` : "",
+      d.role ? `<span class="chip">${esc(d.role)}</span>` : "",
+      `<span>${ago(it.date)}</span>`,
+      acct(it),
+    ]) + summary(it));
+  },
+  deal(it) {
+    const d = it.data;
+    const exp = parseWhen(it.event_time || d.expires);
+    const n = exp ? dayDiff(exp) : null;
+    return cardShell(it, meta([
+      d.merchant ? `<span>${esc(d.merchant)}</span>` : "",
+      exp ? `<span class="chip ${n <= 2 ? "high" : ""}">${n === 0 ? "今天截止" : n === 1 ? "明天截止" : `还剩 ${n} 天`}</span>` : "",
+      acct(it),
+    ]) + (d.why ? `<div class="s">${esc(d.why)}</div>` : summary(it)));
+  },
+  ad(it) {
+    return cardShell(it, meta([
+      it.data.merchant ? `<span>${esc(it.data.merchant)}</span>` : "",
+      `<span>${ago(it.date)}</span>`,
+      acct(it),
+    ]));
+  },
+};
+
+function focusItems(sections) {
+  const out = [];
+  for (const it of sections.appointment) {
+    const w = parseWhen(it.event_time);
+    if (w && dayDiff(w) <= 1 && it.data.status !== "cancelled") out.push(it);
+    else if (it.priority === "high") out.push(it);
+  }
+  for (const it of sections.shopping) {
+    if (["out_for_delivery", "problem"].includes(it.data.status)) out.push(it);
+    else if (it.data.status !== "delivered") {
+      const eta = parseWhen(it.event_time);
+      if (eta && dayDiff(eta) === 0) out.push(it);
+    }
+  }
+  for (const it of sections.work) if (it.data.needs_reply && it.priority === "high") out.push(it);
+  for (const it of sections.deal) if (it.priority === "high") out.push(it);
+  return out.slice(0, 9);
+}
+
+function render() {
+  if (!state) return;
+  const keep = it => filter === "all" || it.account === filter;
+  const sections = {};
+  for (const [k, v] of Object.entries(state.sections)) sections[k] = v.filter(keep);
+  sections.focus = focusItems(sections);
+
+  document.getElementById("main").innerHTML = SECTIONS.map(([key, name]) => {
+    const items = sections[key];
+    if (key === "focus" && !items.length) return "";
+    const render = key === "focus" ? it => RENDER[it.category](it) : RENDER[key];
+    const isAds = key === "ad";
+    const toggle = isAds && items.length > 5
+      ? `<button class="toggle" id="ads-toggle">${adsOpen ? "收起" : "展开全部"}</button>` : "";
+    return `<section class="${key === "focus" ? "focus" : ""} ${isAds ? "ads" + (adsOpen ? "" : " collapsed") : ""}">
+      <h2>${name} <span class="n">${items.length}</span>${toggle}</h2>
+      <div class="list">${items.length ? items.map(render).join("") : `<div class="empty">暂时没有</div>`}</div>
+    </section>`;
+  }).join("");
+
+  const t = document.getElementById("ads-toggle");
+  if (t) t.onclick = () => { adsOpen = !adsOpen; render(); };
+}
+
+function renderChrome() {
+  const accts = state.accounts;
+  const errs = accts.filter(a => a.error);
+  const last = Math.max(0, ...accts.map(a => a.last_sync || 0));
+  document.getElementById("status").innerHTML =
+    `${accts.length} 个邮箱 · 同步于 ${last ? ago(last) : "—"}` +
+    (state.pending ? ` · ${state.pending} 封待处理` : "") +
+    (errs.length ? ` · <span class="err" title="${esc(errs.map(a => a.label + ": " + a.error).join("\n"))}">${errs.length} 个同步出错</span>` : "");
+
+  const opts = [["all", "全部"], ...accts.map(a => [a.email, a.label])];
+  if (!opts.some(([v]) => v === filter)) filter = "all";
+  document.getElementById("filters").innerHTML = opts.map(([v, l]) =>
+    `<button class="${v === filter ? "on" : ""}" data-filter="${esc(v)}">${esc(l)}</button>`).join("");
+}
+
+async function load() {
+  try {
+    const r = await fetch("api/dashboard", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    state = await r.json();
+    renderChrome();
+    render();
+  } catch (e) {
+    document.getElementById("status").innerHTML = `<span class="err">加载失败 (${esc(e.message)})</span>`;
+  }
+}
+
+document.addEventListener("click", async e => {
+  const f = e.target.closest("[data-filter]");
+  if (f) { filter = f.dataset.filter; localSet("filter", filter); renderChrome(); render(); return; }
+  const d = e.target.closest("[data-done]");
+  if (!d) return;
+  const id = Number(d.dataset.done);
+  const r = await fetch(`api/items/${id}/done`, { method: "POST", headers: { "X-MailHub": "1" } });
+  if (!r.ok) return;
+  for (const k of Object.keys(state.sections)) state.sections[k] = state.sections[k].filter(it => it.id !== id);
+  render();
+});
+
+load();
+setInterval(load, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>

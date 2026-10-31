@@ -1,0 +1,15 @@
+[Unit]
+Description=mail-hub sync + classify + notify
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Git/mail-hub
+EnvironmentFile=-%h/.config/mail-hub/env
+# systemd's default PATH lacks ~/.local/bin, where claude usually lives
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 -m mailhub tick
+Nice=19
+IOSchedulingClass=idle
+MemoryMax=700M
+TimeoutStartSec=20min

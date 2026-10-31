@@ -1,0 +1,7 @@
+__pycache__/
+*.db
+*.db-*
+env
+config.toml
+client_secret*.json
+tokens/
