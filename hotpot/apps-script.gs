@@ -180,7 +180,7 @@ function doPost(e) {
       const name = clean_(body.name, 40);
       const heads = Math.max(1, Math.min(20, parseInt(body.heads, 10) || 1));
       const note = String(body.note == null ? '' : body.note).trim().slice(0, 300);
-      const items = (Array.isArray(body.items) ? body.items : []).slice(0, 20).map(function (i) {
+      const items = (Array.isArray(body.items) ? body.items : []).slice(0, 100).map(function (i) {
         return { cat: CATS[i && i.cat] ? i.cat : 'other', text: clean_(i && i.text, 60), qty: clean_(i && i.qty, 20), reqId: clean_(i && i.reqId, 20) };
       }).filter(function (i) { return i.text; });
       if (!name || !items.length) return json_({ ok: false, error: 'missing_fields' });
