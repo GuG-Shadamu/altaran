@@ -26,8 +26,37 @@ const CATS = {
   staple: '主食', dip: '蘸料', drink: '饮料/酒', dessert: '甜点/水果', gear: '锅具/餐具', other: '其他'
 };
 
+// Uses SPREADSHEET_ID when this account can open it. Otherwise it creates a sheet
+// in this account's Drive once and remembers it. Run setup() to see which sheet is used.
+function spreadsheet_() {
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty('SHEET_ID');
+  if (saved) return SpreadsheetApp.openById(saved);
+  try {
+    return SpreadsheetApp.openById(SPREADSHEET_ID);
+  } catch (e) {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    try {
+      const again = props.getProperty('SHEET_ID');
+      if (again) return SpreadsheetApp.openById(again);
+      const ss = SpreadsheetApp.create('感恩节火锅报名');
+      props.setProperty('SHEET_ID', ss.getId());
+      return ss;
+    } finally {
+      lock.releaseLock();
+    }
+  }
+}
+
+function setup() {
+  const ss = spreadsheet_();
+  sheet_();
+  Logger.log('Sign-ups are stored in: ' + ss.getUrl());
+}
+
 function sheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = spreadsheet_();
   let sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
     sh = ss.insertSheet(SHEET_NAME);
