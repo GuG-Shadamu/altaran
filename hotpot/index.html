@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>感恩节火锅 Potluck</title>
+<meta name="description" content="感恩节火锅 potluck 报名：每人填带什么、带多少、来几位。">
+<meta name="theme-color" content="#c2341f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23c2341f'/%3E%3Cpath d='M32 4A28 28 0 0 1 32 60C20 46 44 18 32 4Z' fill='%23fbf0d8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column — 锅况 summary, category board (what's in the pot), my sign-up form, then everyone's list */
+:root {
+  --bg: #f7f4f1;
+  --surface: #ffffff;
+  --ink: #2a1d19;
+  --muted: #7a6a63;
+  --line: #e6ddd7;
+  --chili: #c2341f;
+  --chili-soft: #fbe7e2;
+  --broth: #c98a12;
+  --broth-soft: #fbf0d8;
+  --ok: #2f7a4b;
+  --font-display: "ZCOOL XiaoWei", "Songti SC", "STSong", serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1412; --surface: #251c19; --ink: #f2e9e4; --muted: #b0a09a; --line: #3a2e2a;
+    --chili: #ff6a50; --chili-soft: #3d1f19; --broth: #f0b23c; --broth-soft: #3a2d14; --ok: #6cc28c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1412; --surface: #251c19; --ink: #f2e9e4; --muted: #b0a09a; --line: #3a2e2a;
+  --chili: #ff6a50; --chili-soft: #3d1f19; --broth: #f0b23c; --broth-soft: #3a2d14; --ok: #6cc28c;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px; }
+header { display: flex; gap: 18px; align-items: center; }
+header svg { flex: none; width: 64px; height: 64px; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 6vw, 40px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); margin: 4px 0 0; }
+h2 { font-family: var(--font-display); font-weight: 400; font-size: 24px; margin: 0 0 12px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-size: 22px; font-weight: 700; margin-right: 4px; }
+.status { padding: 10px 14px; border-radius: 8px; background: var(--broth-soft); color: var(--ink); }
+.status[hidden] { display: none; }
+
+/* category board */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.cat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.cat.empty { border-style: dashed; background: transparent; }
+.cat-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cat-name { font-weight: 700; }
+.pill { font-size: 12px; padding: 1px 8px; border-radius: 99px; white-space: nowrap; }
+.pill.need { background: var(--chili-soft); color: var(--chili); }
+.pill.have { background: transparent; color: var(--ok); border: 1px solid currentColor; }
+.cat ul { list-style: none; margin: 6px 0 0; padding: 0; font-size: 14px; }
+.cat li { overflow-wrap: anywhere; }
+.cat li .who { color: var(--muted); }
+.cat li .q { color: var(--broth); font-variant-numeric: tabular-nums; }
+.p-items li em { font-style: normal; color: var(--broth); }
+.cat .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+
+/* form */
+form { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 180px; min-width: 0; }
+.field.narrow { flex: 0 1 110px; }
+form > .field { flex: none; }
+label, .lbl { font-size: 13px; color: var(--muted); }
+input, select, textarea {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; min-height: 60px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--broth); outline-offset: 1px; }
+.items { display: flex; flex-direction: column; gap: 8px; }
+.item { display: grid; grid-template-columns: 140px minmax(0, 1fr) 110px 36px; gap: 8px; }
+@media (max-width: 520px) { .item { grid-template-columns: minmax(0, 1fr) 96px 36px; } .item select { grid-column: 1 / -1; } }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 8px 14px; }
+button.primary { background: var(--chili); border-color: var(--chili); color: #fff; font-weight: 500; }
+button.ghost { background: transparent; }
+button.x { padding: 0; width: 36px; color: var(--muted); }
+button.danger { color: var(--chili); border-color: var(--chili); background: transparent; }
+button:disabled { opacity: .55; cursor: default; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.saved { color: var(--ok); font-size: 14px; }
+.err { color: var(--chili); font-size: 14px; }
+
+/* people */
+.people { display: flex; flex-direction: column; gap: 10px; }
+.person { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; min-width: 0; }
+.person.me { border-color: var(--broth); }
+.p-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
+.p-name { font-weight: 700; font-size: 16px; overflow-wrap: anywhere; }
+.p-meta { color: var(--muted); font-size: 13px; }
+.p-items { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.p-items li { background: var(--broth-soft); border-radius: 6px; padding: 2px 8px; font-size: 14px; overflow-wrap: anywhere; }
+.p-items li span { color: var(--muted); font-size: 12px; margin-right: 4px; }
+.p-note { margin: 8px 0 0; color: var(--muted); font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.p-tools { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+.p-tools button { padding: 4px 10px; font-size: 13px; }
+.empty-state { color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; padding: 20px; text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .person, .cat { transition: border-color .2s; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="34" r="26" fill="var(--line)"></circle>
+      <path d="M32 10 A24 24 0 0 0 32 58 C 22 46, 42 22, 32 10 Z" fill="var(--chili)"></path>
+      <path d="M32 10 A24 24 0 0 1 32 58 C 22 46, 42 22, 32 10 Z" fill="var(--broth-soft)"></path>
+      <circle cx="22" cy="28" r="2.2" fill="var(--broth)"></circle>
+      <circle cx="18" cy="40" r="1.6" fill="var(--broth)"></circle>
+      <circle cx="44" cy="30" r="2.4" fill="var(--ok)"></circle>
+      <circle cx="40" cy="44" r="2" fill="var(--broth)"></circle>
+    </svg>
+    <div>
+      <h1>感恩节火锅 Potluck</h1>
+      <p class="sub">每人填一下带什么、来几位。下面的格子会显示哪类已经有人带、哪类还缺。</p>
+    </div>
+  </header>
+
+  <div class="stats" id="stats">
+    <span><b id="s-people">0</b>户报名</span>
+    <span><b id="s-heads">0</b>位到场</span>
+    <span><b id="s-items">0</b>样东西</span>
+  </div>
+  <div class="status" id="status">正在加载报名情况…</div>
+
+  <section>
+    <h2>锅里有什么</h2>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section id="form-section">
+    <h2 id="form-title">我来报名</h2>
+    <form id="form" autocomplete="off">
+      <div class="row">
+        <div class="field">
+          <label for="f-name">名字 / 家庭</label>
+          <input id="f-name" maxlength="40" placeholder="例如：小王一家" required>
+        </div>
+        <div class="field narrow">
+          <label for="f-heads">来几位</label>
+          <input id="f-heads" type="number" min="1" max="20" value="1" inputmode="numeric">
+        </div>
+      </div>
+      <div class="field">
+        <span class="lbl">我带的东西</span>
+        <div class="items" id="items"></div>
+        <div><button type="button" class="ghost" id="add-item">＋ 再加一样</button></div>
+      </div>
+      <div class="field">
+        <label for="f-note">备注（忌口、过敏、几点到、能帮忙准备什么）</label>
+        <textarea id="f-note" maxlength="300" placeholder="例如：不吃香菜；可以早点到帮忙切菜"></textarea>
+      </div>
+      <div class="actions">
+        <button type="submit" class="primary" id="save">保存报名</button>
+        <span id="form-msg" aria-live="polite"></span>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <h2>大家的报名</h2>
+    <div class="people" id="people"><div class="empty-state">还没有人报名。在上面填好名字和要带的东西，点「保存报名」就会出现在这里。</div></div>
+  </section>
+</div>
+
+<script>
+// Paste the Apps Script web app URL (ends in /exec) here. See hotpot/apps-script.gs for setup.
+const API_URL = "";
+
+const CATS = [
+  { k: "broth", name: "锅底 / 汤底", eg: "麻辣锅底、番茄锅、菌汤" },
+  { k: "meat", name: "肉类", eg: "肥牛、羊肉卷、火鸡肉片" },
+  { k: "sea", name: "海鲜", eg: "虾滑、鱼片、扇贝" },
+  { k: "balls", name: "丸滑 / 豆制品", eg: "鱼丸、豆腐、腐竹、午餐肉" },
+  { k: "veg", name: "蔬菜菌菇", eg: "娃娃菜、金针菇、土豆片" },
+  { k: "staple", name: "主食", eg: "宽粉、面条、年糕" },
+  { k: "dip", name: "蘸料", eg: "麻酱、香油、蒜泥、葱花" },
+  { k: "drink", name: "饮料 / 酒", eg: "啤酒、气泡水、果汁" },
+  { k: "dessert", name: "甜点 / 水果", eg: "南瓜派、冰淇淋、水果" },
+  { k: "gear", name: "锅具 / 餐具", eg: "电磁炉、鸳鸯锅、漏勺、纸盘" },
+  { k: "other", name: "其他", eg: "" }
+];
+const CAT = Object.fromEntries(CATS.map(c => [c.k, c]));
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+
+const KEY = "hotpot-2026-me";
+function loadMe() { try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (_) { return null; } }
+function saveMe(v) { try { v ? localStorage.setItem(KEY, JSON.stringify(v)) : localStorage.removeItem(KEY); } catch (_) {} }
+let me = loadMe();            // {id, token} of this browser's entry
+let entries = [];             // [{id, name, heads, items, note, updatedAt}]
+let formDirty = false, loadedMine = false, busy = false;
+
+function status(text) { const s = $("status"); s.hidden = !text; s.textContent = text || ""; }
+function msg(text, cls) { const m = $("form-msg"); m.className = cls || ""; m.textContent = text; }
+
+async function api(body) {
+  const res = body
+    ? await fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
+    : await fetch(API_URL + "?t=" + Date.now());
+  if (!res.ok) throw new Error("http_" + res.status);
+  const data = await res.json();
+  if (!data.ok) { const e = new Error(data.error || "error"); e.code = data.error; throw e; }
+  return data;
+}
+
+/* ---------- form rows ---------- */
+function addItemRow(cat = "meat", text = "", qty = "") {
+  const row = el("div", "item");
+  const idx = $("items").children.length;
+  const sel = el("select"); sel.id = "f-cat-" + idx; sel.setAttribute("aria-label", "类别");
+  CATS.forEach(c => { const o = el("option", null, c.name); o.value = c.k; sel.append(o); });
+  sel.value = CAT[cat] ? cat : "other";
+  const inp = el("input"); inp.id = "f-item-" + idx; inp.maxLength = 60; inp.value = text;
+  inp.setAttribute("aria-label", "带什么");
+  const setPh = () => { inp.placeholder = CAT[sel.value].eg ? "例如：" + CAT[sel.value].eg : "带什么"; };
+  sel.addEventListener("change", setPh); setPh();
+  const q = el("input", "qty"); q.id = "f-qty-" + idx; q.maxLength = 20; q.value = qty;
+  q.placeholder = "数量，如 2盒"; q.setAttribute("aria-label", "数量 / 份量");
+  const x = el("button", "x", "✕"); x.type = "button"; x.setAttribute("aria-label", "删掉这一样");
+  x.addEventListener("click", () => { row.remove(); if (!$("items").children.length) addItemRow(); formDirty = true; });
+  row.append(sel, inp, q, x);
+  $("items").append(row);
+  return inp;
+}
+$("add-item").addEventListener("click", () => addItemRow("veg").focus());
+$("form").addEventListener("input", () => { formDirty = true; msg(""); });
+
+function readForm() {
+  const items = [...$("items").children].map(r => ({
+    cat: r.querySelector("select").value,
+    text: r.querySelector("input:not(.qty)").value.trim(),
+    qty: r.querySelector("input.qty").value.trim()
+  })).filter(i => i.text);
+  return {
+    name: $("f-name").value.trim(),
+    heads: Math.max(1, Math.min(20, parseInt($("f-heads").value, 10) || 1)),
+    items,
+    note: $("f-note").value.trim()
+  };
+}
+function fillForm(d) {
+  $("f-name").value = d.name || "";
+  $("f-heads").value = d.heads || 1;
+  $("f-note").value = d.note || "";
+  $("items").replaceChildren();
+  (d.items && d.items.length ? d.items : [{ cat: "meat", text: "" }]).forEach(i => addItemRow(i.cat, i.text, i.qty || ""));
+  formDirty = false;
+}
+addItemRow();
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!API_URL) { msg("报名表还没接上表格，请联系组织者。", "err"); return; }
+  const data = readForm();
+  if (!data.name) { msg("请先写上名字。", "err"); $("f-name").focus(); return; }
+  if (!data.items.length) { msg("至少写一样要带的东西。", "err"); return; }
+  const btn = $("save"); btn.disabled = true; busy = true; msg("保存中…");
+  try {
+    const res = await api({ action: "save", ...data, ...(me || {}) });
+    me = { id: res.id, token: res.token }; saveMe(me);
+    entries = res.entries; loadedMine = true; formDirty = false;
+    render();
+    msg("已保存，大家都能看到了。", "saved");
+  } catch (err) {
+    msg(err.code === "full" ? "报名人数已满。" : "没保存上，请检查网络后再点一次。", "err");
+  } finally { btn.disabled = false; busy = false; }
+});
+
+/* ---------- render ---------- */
+function render() {
+  $("s-people").textContent = entries.length;
+  $("s-heads").textContent = entries.reduce((s, d) => s + (Number(d.heads) || 1), 0);
+  $("s-items").textContent = entries.reduce((s, d) => s + (Array.isArray(d.items) ? d.items.length : 0), 0);
+  const mine = me && entries.find(e => e.id === me.id);
+  $("form-title").textContent = mine ? "我的报名" : "我来报名";
+
+  const byCat = Object.fromEntries(CATS.map(c => [c.k, []]));
+  entries.forEach(d => (Array.isArray(d.items) ? d.items : []).forEach(i => {
+    const k = CAT[i.cat] ? i.cat : "other";
+    byCat[k].push({ text: String(i.text || ""), qty: String(i.qty || ""), who: String(d.name || "有人") });
+  }));
+  const board = $("board"); board.replaceChildren();
+  CATS.forEach(c => {
+    const got = byCat[c.k];
+    if (c.k === "other" && !got.length) return;
+    const box = el("div", "cat" + (got.length ? "" : " empty"));
+    const head = el("div", "cat-head");
+    head.append(el("span", "cat-name", c.name),
+      got.length ? el("span", "pill have", got.length + " 样") : el("span", "pill need", "还缺"));
+    box.append(head);
+    if (got.length) {
+      const ul = el("ul");
+      got.forEach(g => { const li = el("li", null, g.text + " "); if (g.qty) li.append(el("span", "q", g.qty + " ")); li.append(el("span", "who", "· " + g.who)); ul.append(li); });
+      box.append(ul);
+    } else if (c.eg) box.append(el("p", "hint", "可以带：" + c.eg));
+    board.append(box);
+  });
+
+  const people = $("people"); people.replaceChildren();
+  if (!entries.length) {
+    people.append(el("div", "empty-state", "还没有人报名。在上面填好名字和要带的东西，点「保存报名」就会出现在这里。"));
+    return;
+  }
+  const sorted = [...entries].sort((a, b) => (mine && a.id === me.id ? -1 : mine && b.id === me.id ? 1 : String(a.updatedAt).localeCompare(String(b.updatedAt))));
+  sorted.forEach(d => {
+    const isMine = !!(me && d.id === me.id);
+    const card = el("div", "person" + (isMine ? " me" : ""));
+    const head = el("div", "p-head");
+    head.append(el("span", "p-name", String(d.name || "有人") + (isMine ? "（我）" : "")),
+      el("span", "p-meta", (Number(d.heads) || 1) + " 位"));
+    card.append(head);
+    const ul = el("ul", "p-items");
+    (Array.isArray(d.items) ? d.items : []).forEach(i => {
+      const li = el("li"); li.append(el("span", null, (CAT[i.cat] || CAT.other).name), document.createTextNode(String(i.text || "")));
+      if (i.qty) li.append(el("em", null, " " + String(i.qty)));
+      ul.append(li);
+    });
+    card.append(ul);
+    if (d.note) card.append(el("p", "p-note", String(d.note)));
+    if (isMine) {
+      const tools = el("div", "p-tools");
+      const edit = el("button", null, "修改"); edit.type = "button";
+      edit.addEventListener("click", () => { fillForm(d); $("form-section").scrollIntoView({ behavior: "smooth" }); $("f-name").focus(); });
+      const del = el("button", "danger", "撤回报名"); del.type = "button";
+      del.addEventListener("click", () => {
+        tools.replaceChildren(el("span", null, "确定撤回？"));
+        const yes = el("button", "danger", "撤回"); yes.type = "button";
+        const no = el("button", null, "取消"); no.type = "button";
+        no.addEventListener("click", render);
+        yes.addEventListener("click", async () => {
+          yes.disabled = true; busy = true;
+          try {
+            const res = await api({ action: "delete", ...me });
+            me = null; saveMe(null); entries = res.entries; fillForm({}); msg(""); render();
+          } catch (err) { tools.append(el("span", "err", "没撤回成功，请再试一次。")); yes.disabled = false; }
+          finally { busy = false; }
+        });
+        tools.append(yes, no);
+      });
+      tools.append(edit, del);
+      card.append(tools);
+    }
+    people.append(card);
+  });
+}
+render();
+
+/* ---------- load + refresh ---------- */
+async function refresh() {
+  if (busy) return;
+  try {
+    const res = await api();
+    entries = res.entries;
+    if (me && !entries.find(e => e.id === me.id)) { me = null; saveMe(null); } // row was removed in the sheet
+    const mine = me && entries.find(e => e.id === me.id);
+    if (mine && !loadedMine && !formDirty) fillForm(mine);
+    loadedMine = true;
+    status("");
+    render();
+  } catch (_) {
+    status(entries.length ? "暂时连不上，显示的可能不是最新的。" : "暂时读不到报名情况，请稍后刷新。");
+  }
+}
+if (!API_URL) {
+  status("报名表还没接上表格（组织者需要在页面代码里填上 API_URL）。");
+  $("save").disabled = true;
+} else {
+  refresh();
+  setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
+}
+</script>
+</body>
+</html>
