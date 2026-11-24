@@ -20,7 +20,7 @@
 const SHEET_NAME = 'signups';
 const HEADERS = ['id', 'token', 'name', 'heads', 'items_json', 'items', 'note', 'updatedAt'];
 const REQ_SHEET = 'requests';
-const REQ_HEADERS = ['id', 'token', 'by', 'cat', 'text', 'qty', 'claimedById', 'claimedBy', 'createdAt'];
+const REQ_HEADERS = ['id', 'token', 'by', 'cat', 'text', 'qty', 'claimedById', 'claimedBy', 'createdAt', 'askFor'];
 const CATS = {
   broth: '锅底/汤底', meat: '肉类', sea: '海鲜', balls: '丸滑/豆制品', veg: '蔬菜菌菇',
   staple: '主食', dip: '蘸料', drink: '饮料/酒', dessert: '甜点/水果', gear: '锅具/餐具', other: '其他'
@@ -65,6 +65,7 @@ function reqSheet_() {
     sh.setFrozenRows(1);
     sh.hideColumns(2); // token column
   }
+  if (sh.getRange(1, 10).getValue() !== 'askFor') sh.getRange(1, 10).setValue('askFor');
   return sh;
 }
 
@@ -76,14 +77,14 @@ function reqRows_() {
     if (!v[0]) continue;
     out.push({ row: r + 1, id: String(v[0]), token: String(v[1]), by: String(v[2]), cat: String(v[3]), text: String(v[4]),
                qty: String(v[5] || ''), claimedById: String(v[6] || ''), claimedBy: String(v[7] || ''),
-               createdAt: v[8] ? new Date(v[8]).toISOString() : '' });
+               createdAt: v[8] ? new Date(v[8]).toISOString() : '', askFor: String(v[9] || '') });
   }
   return out;
 }
 
 function publicReqs_() {
   return reqRows_().map(function (r) {
-    return { id: r.id, by: r.by, cat: r.cat, text: r.text, qty: r.qty, claimedById: r.claimedById, claimedBy: r.claimedBy, createdAt: r.createdAt };
+    return { id: r.id, by: r.by, cat: r.cat, text: r.text, qty: r.qty, claimedById: r.claimedById, claimedBy: r.claimedBy, createdAt: r.createdAt, askFor: r.askFor };
   });
 }
 
@@ -164,7 +165,7 @@ function doPost(e) {
       if (rsh.getLastRow() > 100) return json_({ ok: false, error: 'full' });
       const rid = 'r' + Utilities.getUuid().slice(0, 7);
       const rtoken = Utilities.getUuid();
-      rsh.appendRow([rid, rtoken, cell_(by), CATS[body.cat] ? body.cat : 'other', cell_(text), cell_(clean_(body.qty, 20)), '', '', new Date()]);
+      rsh.appendRow([rid, rtoken, cell_(by), CATS[body.cat] ? body.cat : 'other', cell_(text), cell_(clean_(body.qty, 20)), '', '', new Date(), cell_(clean_(body.askFor, 40))]);
       return json_(state_({ id: rid, token: rtoken }));
     }
 

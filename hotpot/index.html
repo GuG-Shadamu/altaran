@@ -111,12 +111,14 @@ button:disabled { opacity: .55; cursor: default; }
 .wish.claimed .w-what { font-weight: 500; }
 .w-qty { color: var(--broth); margin-left: 4px; }
 .w-by { display: block; color: var(--muted); font-size: 13px; }
+.w-for { color: var(--chili); font-weight: 700; }
+.wish.claimed .w-for { color: var(--muted); font-weight: 400; }
 .w-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .w-tools button { padding: 5px 12px; font-size: 14px; }
 .w-tools .claim { background: var(--chili); border-color: var(--chili); color: #fff; font-weight: 500; }
-.wish-form { display: grid; grid-template-columns: 120px 130px minmax(0, 1fr) 90px auto; gap: 8px; align-items: end; padding: 14px; }
+.wish-form { display: grid; grid-template-columns: 100px 120px minmax(0, 1fr) 80px 120px auto; gap: 8px; align-items: end; padding: 14px; }
 .wish-form .field { flex: none; }
-@media (max-width: 640px) { .wish-form { grid-template-columns: 1fr 1fr; } .wish-form .wide { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .wish-form { grid-template-columns: 1fr 1fr; } .wish-form .wide { grid-column: 1 / -1; } }
 .wish-form-msg { grid-column: 1 / -1; min-height: 0; }
 .wish-form-msg:empty { display: none; }
 .item.req input:not(.qty) { border-color: var(--chili); }
@@ -155,13 +157,12 @@ button:disabled { opacity: .55; cursor: default; }
     </svg>
     <div>
       <h1>感恩节火锅 Potluck</h1>
-      <p class="sub">每人填一下带什么、来几位。下面的格子会显示哪类已经有人带、哪类还缺。</p>
+      <p class="sub">每人填一下带什么、带多少。下面的格子会显示哪类已经有人带、哪类还缺。</p>
     </div>
   </header>
 
   <div class="stats" id="stats">
-    <span><b id="s-people">0</b>户报名</span>
-    <span><b id="s-heads">0</b>位到场</span>
+    <span><b id="s-people">0</b>人报名</span>
     <span><b id="s-items">0</b>样东西</span>
   </div>
   <div class="status" id="status">正在加载报名情况…</div>
@@ -175,6 +176,7 @@ button:disabled { opacity: .55; cursor: default; }
       <div class="field"><label for="w-cat">类别</label><select id="w-cat"></select></div>
       <div class="field wide"><label for="w-text">希望有人带</label><input id="w-text" maxlength="60" placeholder="例如：肥牛卷" required></div>
       <div class="field"><label for="w-qty">数量</label><input id="w-qty" maxlength="20" placeholder="2盒"></div>
+      <div class="field"><label for="w-for">希望谁带（可不填）</label><input id="w-for" maxlength="40" placeholder="例如：小王"></div>
       <button type="submit" class="primary" id="w-save">发布求带</button>
       <span class="wish-form-msg" id="w-msg" aria-live="polite"></span>
     </form>
@@ -192,10 +194,6 @@ button:disabled { opacity: .55; cursor: default; }
         <div class="field">
           <label for="f-name">名字 / 家庭</label>
           <input id="f-name" maxlength="40" placeholder="例如：小王一家" required>
-        </div>
-        <div class="field narrow">
-          <label for="f-heads">来几位</label>
-          <input id="f-heads" type="number" min="1" max="20" value="1" inputmode="numeric">
         </div>
       </div>
       <div class="field">
@@ -299,14 +297,12 @@ function readForm() {
   })).filter(i => i.text);
   return {
     name: $("f-name").value.trim(),
-    heads: Math.max(1, Math.min(20, parseInt($("f-heads").value, 10) || 1)),
     items,
     note: $("f-note").value.trim()
   };
 }
 function fillForm(d) {
   $("f-name").value = d.name || "";
-  $("f-heads").value = d.heads || 1;
   $("f-note").value = d.note || "";
   $("items").replaceChildren();
   (d.items && d.items.length ? d.items : [{ cat: "meat", text: "" }]).forEach(i => addItemRow(i.cat, i.text, i.qty || "", i.reqId || ""));
@@ -347,10 +343,10 @@ $("wish-form").addEventListener("submit", async e => {
   saveJSON(KEY_NAME, by);
   const btn = $("w-save"); btn.disabled = true; busy = true; wmsg("发布中…");
   try {
-    const res = await api({ action: "addRequest", by, cat: $("w-cat").value, text, qty: $("w-qty").value.trim() });
+    const res = await api({ action: "addRequest", by, cat: $("w-cat").value, text, qty: $("w-qty").value.trim(), askFor: $("w-for").value.trim() });
     myReqs.push({ id: res.id, token: res.token }); saveJSON(KEY_REQ, myReqs);
     applyState(res); render();
-    $("w-text").value = ""; $("w-qty").value = "";
+    $("w-text").value = ""; $("w-qty").value = ""; $("w-for").value = "";
     wmsg("已发布。", "saved");
   } catch (err) {
     wmsg(err.code === "full" ? "求带清单已满。" : "没发布成功，请再试一次。", "err");
@@ -368,7 +364,9 @@ function claim(r) {
   msg("已加到你的报名里，点「保存报名」就算认领了。", "saved");
 }
 
+const norm = t => String(t || "").trim().toLowerCase();
 function renderWishes() {
+  const mine = me && entries.find(e => e.id === me.id);
   const box = $("wishes"); box.replaceChildren();
   if (!requests.length) {
     box.append(el("div", "empty-state", "还没有求带。想吃什么，在下面写上，大家就能看到。"));
@@ -382,12 +380,16 @@ function renderWishes() {
     const main = el("div", "w-main");
     main.append(el("span", "w-tag", claimed ? "✓ 已认领" : "求带"), el("span", "w-what", String(r.text || "")));
     if (r.qty) main.append(el("span", "w-qty", String(r.qty)));
-    main.append(el("span", "w-by", (CAT[r.cat] || CAT.other).name + " · " + String(r.by || "有人") + " 想要" +
-      (claimed ? " · " + String(r.claimedBy || "有人") + " 来带" : "")));
+    const line = el("span", "w-by", (CAT[r.cat] || CAT.other).name + " · " + String(r.by || "有人") + " 想要");
+    if (r.askFor && !claimed) { line.append("，希望 "); line.append(el("span", "w-for", String(r.askFor))); line.append(" 来带"); }
+    if (claimed) line.append(" · " + String(r.claimedBy || "有人") + " 来带");
+    main.append(line);
     card.append(main);
     const tools = el("div", "w-tools");
     if (!claimed) {
-      const b = el("button", "claim", inForm.has(r.id) ? "已加到报名，记得保存" : "我来带"); b.type = "button";
+      const myName = norm((mine && mine.name) || loadJSON(KEY_NAME, "") || "");
+      const called = r.askFor && myName && norm(r.askFor) === myName;
+      const b = el("button", "claim", inForm.has(r.id) ? "已加到报名，记得保存" : called ? "点名你了，我来带" : "我来带"); b.type = "button";
       b.addEventListener("click", () => claim(r));
       tools.append(b);
     }
@@ -420,7 +422,6 @@ function renderWishes() {
 /* ---------- render ---------- */
 function render() {
   $("s-people").textContent = entries.length;
-  $("s-heads").textContent = entries.reduce((s, d) => s + (Number(d.heads) || 1), 0);
   $("s-items").textContent = entries.reduce((s, d) => s + (Array.isArray(d.items) ? d.items.length : 0), 0);
   const mine = me && entries.find(e => e.id === me.id);
   $("form-title").textContent = mine ? "我的报名" : "我来报名";
@@ -447,7 +448,7 @@ function render() {
     if (got.length || wants.length) {
       const ul = el("ul");
       got.forEach(g => { const li = el("li", null, g.text + " "); if (g.qty) li.append(el("span", "q", g.qty + " ")); li.append(el("span", "who", "· " + g.who)); ul.append(li); });
-      wants.forEach(r => ul.append(el("li", "wish-li", "求带：" + String(r.text || "") + (r.qty ? " " + r.qty : "") + "（" + String(r.by || "有人") + "）")));
+      wants.forEach(r => ul.append(el("li", "wish-li", "求带：" + String(r.text || "") + (r.qty ? " " + r.qty : "") + "（" + String(r.by || "有人") + (r.askFor ? " → " + String(r.askFor) : "") + "）")));
       box.append(ul);
     } else if (c.eg) box.append(el("p", "hint", "可以带：" + c.eg));
     board.append(box);
@@ -463,8 +464,7 @@ function render() {
     const isMine = !!(me && d.id === me.id);
     const card = el("div", "person" + (isMine ? " me" : ""));
     const head = el("div", "p-head");
-    head.append(el("span", "p-name", String(d.name || "有人") + (isMine ? "（我）" : "")),
-      el("span", "p-meta", (Number(d.heads) || 1) + " 位"));
+    head.append(el("span", "p-name", String(d.name || "有人") + (isMine ? "（我）" : "")));
     card.append(head);
     const ul = el("ul", "p-items");
     (Array.isArray(d.items) ? d.items : []).forEach(i => {
