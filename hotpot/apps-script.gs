@@ -2,9 +2,9 @@
  * 感恩节火锅 Potluck: the backend for altaran.xyz/hotpot
  *
  * Setup (about 5 minutes):
- * 1. Put the Google Sheet's id in SPREADSHEET_ID below.
- * 2. Go to script.google.com > New project (or, in the sheet, Extensions > Apps Script).
- *    Delete the sample code and paste this whole file in. Save.
+ * 1. Go to script.google.com > New project, signed in to only one Google account
+ *    (an incognito window helps). Delete the sample code and paste this whole file in. Save.
+ * 2. Choose setup in the function list and click Run. It creates the sheet and logs its link.
  * 3. Click Deploy > New deployment. For the type, choose "Web app".
  *      Execute as:      Me
  *      Who has access:  Anyone
@@ -17,8 +17,6 @@
  * so the URL stays the same.
  */
 
-// The Google Sheet that stores the sign-ups (the long id in its URL).
-const SPREADSHEET_ID = '1utdz6YAlEtfgYUmhYPTjerUkqPKdugrReDefr8CgyLY';
 const SHEET_NAME = 'signups';
 const HEADERS = ['id', 'token', 'name', 'heads', 'items_json', 'items', 'note', 'updatedAt'];
 const CATS = {
@@ -26,19 +24,15 @@ const CATS = {
   staple: '主食', dip: '蘸料', drink: '饮料/酒', dessert: '甜点/水果', gear: '锅具/餐具', other: '其他'
 };
 
-// Uses SPREADSHEET_ID when this account can open it. Otherwise it creates a sheet
-// in this account's Drive once and remembers it. Run setup() to see which sheet is used.
+// The first run creates a sheet named 感恩节火锅报名 in the deploying account's Drive
+// and remembers it. Run setup() once to create it and log its link.
 function spreadsheet_() {
   const props = PropertiesService.getScriptProperties();
   const saved = props.getProperty('SHEET_ID');
   if (saved) return SpreadsheetApp.openById(saved);
-  try {
-    return SpreadsheetApp.openById(SPREADSHEET_ID);
-  } catch (e) {
-    const ss = SpreadsheetApp.create('感恩节火锅报名');
-    props.setProperty('SHEET_ID', ss.getId());
-    return ss;
-  }
+  const ss = SpreadsheetApp.create('感恩节火锅报名');
+  props.setProperty('SHEET_ID', ss.getId());
+  return ss;
 }
 
 function setup() {
@@ -51,7 +45,8 @@ function sheet_() {
   const ss = spreadsheet_();
   let sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
-    sh = ss.insertSheet(SHEET_NAME);
+    sh = ss.getSheets()[0];
+    sh.setName(SHEET_NAME);
     sh.appendRow(HEADERS);
     sh.setFrozenRows(1);
     sh.hideColumns(2); // token column
