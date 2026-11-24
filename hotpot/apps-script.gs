@@ -19,6 +19,8 @@
 
 const SHEET_NAME = 'signups';
 const HEADERS = ['id', 'token', 'name', 'heads', 'items_json', 'items', 'note', 'updatedAt'];
+const REQ_SHEET = 'requests';
+const REQ_HEADERS = ['id', 'token', 'by', 'cat', 'text', 'qty', 'claimedById', 'claimedBy', 'createdAt'];
 const CATS = {
   broth: '锅底/汤底', meat: '肉类', sea: '海鲜', balls: '丸滑/豆制品', veg: '蔬菜菌菇',
   staple: '主食', dip: '蘸料', drink: '饮料/酒', dessert: '甜点/水果', gear: '锅具/餐具', other: '其他'
@@ -54,6 +56,56 @@ function sheet_() {
   return sh;
 }
 
+function reqSheet_() {
+  const ss = spreadsheet_();
+  let sh = ss.getSheetByName(REQ_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(REQ_SHEET);
+    sh.appendRow(REQ_HEADERS);
+    sh.setFrozenRows(1);
+    sh.hideColumns(2); // token column
+  }
+  return sh;
+}
+
+function reqRows_() {
+  const values = reqSheet_().getDataRange().getValues();
+  const out = [];
+  for (let r = 1; r < values.length; r++) {
+    const v = values[r];
+    if (!v[0]) continue;
+    out.push({ row: r + 1, id: String(v[0]), token: String(v[1]), by: String(v[2]), cat: String(v[3]), text: String(v[4]),
+               qty: String(v[5] || ''), claimedById: String(v[6] || ''), claimedBy: String(v[7] || ''),
+               createdAt: v[8] ? new Date(v[8]).toISOString() : '' });
+  }
+  return out;
+}
+
+function publicReqs_() {
+  return reqRows_().map(function (r) {
+    return { id: r.id, by: r.by, cat: r.cat, text: r.text, qty: r.qty, claimedById: r.claimedById, claimedBy: r.claimedBy, createdAt: r.createdAt };
+  });
+}
+
+// Mark the requests this entry's items point at as claimed by it, and release ones it dropped.
+function syncClaims_(entryId, name, reqIds) {
+  const sh = reqSheet_();
+  reqRows_().forEach(function (r) {
+    const want = reqIds.indexOf(r.id) >= 0;
+    if (want && (!r.claimedById || r.claimedById === entryId)) {
+      sh.getRange(r.row, 7, 1, 2).setValues([[entryId, cell_(name)]]);
+    } else if (!want && r.claimedById === entryId) {
+      sh.getRange(r.row, 7, 1, 2).setValues([['', '']]);
+    }
+  });
+}
+
+function state_(extra) {
+  const out = { ok: true, entries: publicList_(), requests: publicReqs_() };
+  Object.keys(extra || {}).forEach(function (k) { out[k] = extra[k]; });
+  return out;
+}
+
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -84,7 +136,7 @@ function clean_(s, max) { return String(s == null ? '' : s).replace(/[\u0000-\u0
 function cell_(s) { return /^[=+\-@]/.test(s) ? "'" + s : s; }
 
 function doGet() {
-  return json_({ ok: true, entries: publicList_() });
+  return json_(state_());
 }
 
 function doPost(e) {
@@ -101,7 +153,26 @@ function doPost(e) {
       const hit = all.find(function (x) { return x.id === body.id && x.token === body.token; });
       if (!hit) return json_({ ok: false, error: 'not_found' });
       sh.deleteRow(hit.row);
-      return json_({ ok: true, entries: publicList_() });
+      syncClaims_(hit.id, '', []);
+      return json_(state_());
+    }
+
+    if (body.action === 'addRequest') {
+      const by = clean_(body.by, 40), text = clean_(body.text, 60);
+      if (!by || !text) return json_({ ok: false, error: 'missing_fields' });
+      const rsh = reqSheet_();
+      if (rsh.getLastRow() > 100) return json_({ ok: false, error: 'full' });
+      const rid = 'r' + Utilities.getUuid().slice(0, 7);
+      const rtoken = Utilities.getUuid();
+      rsh.appendRow([rid, rtoken, cell_(by), CATS[body.cat] ? body.cat : 'other', cell_(text), cell_(clean_(body.qty, 20)), '', '', new Date()]);
+      return json_(state_({ id: rid, token: rtoken }));
+    }
+
+    if (body.action === 'deleteRequest') {
+      const r = reqRows_().find(function (x) { return x.id === body.id && x.token === body.token; });
+      if (!r) return json_({ ok: false, error: 'not_found' });
+      reqSheet_().deleteRow(r.row);
+      return json_(state_());
     }
 
     if (body.action === 'save') {
@@ -109,7 +180,7 @@ function doPost(e) {
       const heads = Math.max(1, Math.min(20, parseInt(body.heads, 10) || 1));
       const note = String(body.note == null ? '' : body.note).trim().slice(0, 300);
       const items = (Array.isArray(body.items) ? body.items : []).slice(0, 20).map(function (i) {
-        return { cat: CATS[i && i.cat] ? i.cat : 'other', text: clean_(i && i.text, 60), qty: clean_(i && i.qty, 20) };
+        return { cat: CATS[i && i.cat] ? i.cat : 'other', text: clean_(i && i.text, 60), qty: clean_(i && i.qty, 20), reqId: clean_(i && i.reqId, 20) };
       }).filter(function (i) { return i.text; });
       if (!name || !items.length) return json_({ ok: false, error: 'missing_fields' });
 
@@ -125,7 +196,8 @@ function doPost(e) {
         token = Utilities.getUuid();
         sh.appendRow([id, token, cell_(name), heads, JSON.stringify(items), itemsText, cell_(note), now]);
       }
-      return json_({ ok: true, id: id, token: token, entries: publicList_() });
+      syncClaims_(id, name, items.map(function (i) { return i.reqId; }).filter(Boolean));
+      return json_(state_({ id: id, token: token }));
     }
 
     return json_({ ok: false, error: 'unknown_action' });

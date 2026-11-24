@@ -97,6 +97,30 @@ button.danger { color: var(--chili); border-color: var(--chili); background: tra
 button:disabled { opacity: .55; cursor: default; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .saved { color: var(--ok); font-size: 14px; }
+
+/* wish list */
+.sec-sub { color: var(--muted); margin: -6px 0 12px; font-size: 14px; }
+.wishes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.wish { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--chili); background: var(--chili-soft); min-width: 0; }
+.wish.claimed { border: 1px solid var(--line); background: var(--surface); }
+.w-main { min-width: 0; overflow-wrap: anywhere; }
+.w-tag { font-size: 12px; font-weight: 700; color: var(--chili); margin-right: 6px; }
+.wish.claimed .w-tag { color: var(--ok); }
+.w-what { font-weight: 700; }
+.wish.claimed .w-what { font-weight: 500; }
+.w-qty { color: var(--broth); margin-left: 4px; }
+.w-by { display: block; color: var(--muted); font-size: 13px; }
+.w-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.w-tools button { padding: 5px 12px; font-size: 14px; }
+.w-tools .claim { background: var(--chili); border-color: var(--chili); color: #fff; font-weight: 500; }
+.wish-form { display: grid; grid-template-columns: 120px 130px minmax(0, 1fr) 90px auto; gap: 8px; align-items: end; padding: 14px; }
+.wish-form .field { flex: none; }
+@media (max-width: 640px) { .wish-form { grid-template-columns: 1fr 1fr; } .wish-form .wide { grid-column: 1 / -1; } }
+.wish-form-msg { grid-column: 1 / -1; min-height: 0; }
+.wish-form-msg:empty { display: none; }
+.item.req input:not(.qty) { border-color: var(--chili); }
+.cat li.wish-li { color: var(--chili); }
 .err { color: var(--chili); font-size: 14px; }
 
 /* people */
@@ -141,6 +165,20 @@ button:disabled { opacity: .55; cursor: default; }
     <span><b id="s-items">0</b>样东西</span>
   </div>
   <div class="status" id="status">正在加载报名情况…</div>
+
+  <section id="wish-section">
+    <h2>求带清单</h2>
+    <p class="sec-sub">想吃什么还没人带？写在这里。看到了可以点「我来带」认领。</p>
+    <div class="wishes" id="wishes"></div>
+    <form id="wish-form" class="wish-form" autocomplete="off">
+      <div class="field"><label for="w-by">我是</label><input id="w-by" maxlength="40" placeholder="名字" required></div>
+      <div class="field"><label for="w-cat">类别</label><select id="w-cat"></select></div>
+      <div class="field wide"><label for="w-text">希望有人带</label><input id="w-text" maxlength="60" placeholder="例如：肥牛卷" required></div>
+      <div class="field"><label for="w-qty">数量</label><input id="w-qty" maxlength="20" placeholder="2盒"></div>
+      <button type="submit" class="primary" id="w-save">发布求带</button>
+      <span class="wish-form-msg" id="w-msg" aria-live="polite"></span>
+    </form>
+  </section>
 
   <section>
     <h2>锅里有什么</h2>
@@ -208,6 +246,12 @@ function loadMe() { try { return JSON.parse(localStorage.getItem(KEY)) || null; 
 function saveMe(v) { try { v ? localStorage.setItem(KEY, JSON.stringify(v)) : localStorage.removeItem(KEY); } catch (_) {} }
 let me = loadMe();            // {id, token} of this browser's entry
 let entries = [];             // [{id, name, heads, items, note, updatedAt}]
+let requests = [];            // [{id, by, cat, text, qty, claimedById, claimedBy, createdAt}]
+const KEY_REQ = "hotpot-2026-requests", KEY_NAME = "hotpot-2026-name";
+function loadJSON(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (_) { return d; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
+let myReqs = loadJSON(KEY_REQ, []); // [{id, token}] requests posted from this browser
+function applyState(res) { entries = res.entries || []; requests = res.requests || []; }
 let formDirty = false, loadedMine = false, busy = false;
 
 function status(text) { const s = $("status"); s.hidden = !text; s.textContent = text || ""; }
@@ -224,8 +268,9 @@ async function api(body) {
 }
 
 /* ---------- form rows ---------- */
-function addItemRow(cat = "meat", text = "", qty = "") {
-  const row = el("div", "item");
+function addItemRow(cat = "meat", text = "", qty = "", reqId = "") {
+  const row = el("div", "item" + (reqId ? " req" : ""));
+  if (reqId) row.dataset.req = reqId;
   const idx = $("items").children.length;
   const sel = el("select"); sel.id = "f-cat-" + idx; sel.setAttribute("aria-label", "类别");
   CATS.forEach(c => { const o = el("option", null, c.name); o.value = c.k; sel.append(o); });
@@ -249,7 +294,8 @@ function readForm() {
   const items = [...$("items").children].map(r => ({
     cat: r.querySelector("select").value,
     text: r.querySelector("input:not(.qty)").value.trim(),
-    qty: r.querySelector("input.qty").value.trim()
+    qty: r.querySelector("input.qty").value.trim(),
+    ...(r.dataset.req ? { reqId: r.dataset.req } : {})
   })).filter(i => i.text);
   return {
     name: $("f-name").value.trim(),
@@ -263,7 +309,7 @@ function fillForm(d) {
   $("f-heads").value = d.heads || 1;
   $("f-note").value = d.note || "";
   $("items").replaceChildren();
-  (d.items && d.items.length ? d.items : [{ cat: "meat", text: "" }]).forEach(i => addItemRow(i.cat, i.text, i.qty || ""));
+  (d.items && d.items.length ? d.items : [{ cat: "meat", text: "" }]).forEach(i => addItemRow(i.cat, i.text, i.qty || "", i.reqId || ""));
   formDirty = false;
 }
 addItemRow();
@@ -272,19 +318,104 @@ $("form").addEventListener("submit", async e => {
   e.preventDefault();
   if (!API_URL) { msg("报名表还没接上表格，请联系组织者。", "err"); return; }
   const data = readForm();
+  if (data.name) saveJSON(KEY_NAME, data.name);
   if (!data.name) { msg("请先写上名字。", "err"); $("f-name").focus(); return; }
   if (!data.items.length) { msg("至少写一样要带的东西。", "err"); return; }
   const btn = $("save"); btn.disabled = true; busy = true; msg("保存中…");
   try {
     const res = await api({ action: "save", ...data, ...(me || {}) });
     me = { id: res.id, token: res.token }; saveMe(me);
-    entries = res.entries; loadedMine = true; formDirty = false;
+    applyState(res); loadedMine = true; formDirty = false;
     render();
     msg("已保存，大家都能看到了。", "saved");
   } catch (err) {
     msg(err.code === "full" ? "报名人数已满。" : "没保存上，请检查网络后再点一次。", "err");
   } finally { btn.disabled = false; busy = false; }
 });
+
+/* ---------- wish list ---------- */
+CATS.forEach(c => { const o = el("option", null, c.name); o.value = c.k; $("w-cat").append(o); });
+$("w-cat").value = "meat";
+$("w-by").value = loadJSON(KEY_NAME, "") || "";
+function wmsg(text, cls) { const m = $("w-msg"); m.className = "wish-form-msg " + (cls || ""); m.textContent = text; }
+$("wish-form").addEventListener("input", () => wmsg(""));
+$("wish-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!API_URL) return;
+  const by = $("w-by").value.trim(), text = $("w-text").value.trim();
+  if (!by || !text) { wmsg("写上你的名字和想要的东西。", "err"); return; }
+  saveJSON(KEY_NAME, by);
+  const btn = $("w-save"); btn.disabled = true; busy = true; wmsg("发布中…");
+  try {
+    const res = await api({ action: "addRequest", by, cat: $("w-cat").value, text, qty: $("w-qty").value.trim() });
+    myReqs.push({ id: res.id, token: res.token }); saveJSON(KEY_REQ, myReqs);
+    applyState(res); render();
+    $("w-text").value = ""; $("w-qty").value = "";
+    wmsg("已发布。", "saved");
+  } catch (err) {
+    wmsg(err.code === "full" ? "求带清单已满。" : "没发布成功，请再试一次。", "err");
+  } finally { btn.disabled = false; busy = false; }
+});
+
+function claim(r) {
+  const rows = [...$("items").children];
+  if (rows.some(x => x.dataset.req === r.id)) { $("form-section").scrollIntoView({ behavior: "smooth" }); return; }
+  if (rows.length === 1 && !rows[0].querySelector("input:not(.qty)").value.trim()) rows[0].remove();
+  addItemRow(r.cat, r.text, r.qty || "", r.id);
+  formDirty = true;
+  if (!$("f-name").value) $("f-name").value = loadJSON(KEY_NAME, "") || "";
+  $("form-section").scrollIntoView({ behavior: "smooth" });
+  msg("已加到你的报名里，点「保存报名」就算认领了。", "saved");
+}
+
+function renderWishes() {
+  const box = $("wishes"); box.replaceChildren();
+  if (!requests.length) {
+    box.append(el("div", "empty-state", "还没有求带。想吃什么，在下面写上，大家就能看到。"));
+    return;
+  }
+  const inForm = new Set([...$("items").children].map(x => x.dataset.req).filter(Boolean));
+  const sorted = [...requests].sort((a, b) => (!!a.claimedById - !!b.claimedById) || String(a.createdAt).localeCompare(String(b.createdAt)));
+  sorted.forEach(r => {
+    const claimed = !!r.claimedById;
+    const card = el("div", "wish" + (claimed ? " claimed" : ""));
+    const main = el("div", "w-main");
+    main.append(el("span", "w-tag", claimed ? "✓ 已认领" : "求带"), el("span", "w-what", String(r.text || "")));
+    if (r.qty) main.append(el("span", "w-qty", String(r.qty)));
+    main.append(el("span", "w-by", (CAT[r.cat] || CAT.other).name + " · " + String(r.by || "有人") + " 想要" +
+      (claimed ? " · " + String(r.claimedBy || "有人") + " 来带" : "")));
+    card.append(main);
+    const tools = el("div", "w-tools");
+    if (!claimed) {
+      const b = el("button", "claim", inForm.has(r.id) ? "已加到报名，记得保存" : "我来带"); b.type = "button";
+      b.addEventListener("click", () => claim(r));
+      tools.append(b);
+    }
+    const mineReq = myReqs.find(x => x.id === r.id);
+    if (mineReq) {
+      const del = el("button", "danger", "撤掉"); del.type = "button";
+      del.addEventListener("click", () => {
+        tools.replaceChildren(el("span", null, "确定撤掉？"));
+        const yes = el("button", "danger", "撤掉"); yes.type = "button";
+        const no = el("button", null, "取消"); no.type = "button";
+        no.addEventListener("click", render);
+        yes.addEventListener("click", async () => {
+          yes.disabled = true; busy = true;
+          try {
+            const res = await api({ action: "deleteRequest", ...mineReq });
+            myReqs = myReqs.filter(x => x.id !== r.id); saveJSON(KEY_REQ, myReqs);
+            applyState(res); render();
+          } catch (_) { tools.append(el("span", "err", "没撤掉，请再试一次。")); yes.disabled = false; }
+          finally { busy = false; }
+        });
+        tools.append(yes, no);
+      });
+      tools.append(del);
+    }
+    if (tools.children.length) card.append(tools);
+    box.append(card);
+  });
+}
 
 /* ---------- render ---------- */
 function render() {
@@ -293,24 +424,30 @@ function render() {
   $("s-items").textContent = entries.reduce((s, d) => s + (Array.isArray(d.items) ? d.items.length : 0), 0);
   const mine = me && entries.find(e => e.id === me.id);
   $("form-title").textContent = mine ? "我的报名" : "我来报名";
+  if (!$("w-by").value && mine) $("w-by").value = mine.name || "";
+  renderWishes();
 
   const byCat = Object.fromEntries(CATS.map(c => [c.k, []]));
   entries.forEach(d => (Array.isArray(d.items) ? d.items : []).forEach(i => {
     const k = CAT[i.cat] ? i.cat : "other";
     byCat[k].push({ text: String(i.text || ""), qty: String(i.qty || ""), who: String(d.name || "有人") });
   }));
+  const wishCat = Object.fromEntries(CATS.map(c => [c.k, []]));
+  requests.filter(r => !r.claimedById).forEach(r => wishCat[CAT[r.cat] ? r.cat : "other"].push(r));
   const board = $("board"); board.replaceChildren();
   CATS.forEach(c => {
     const got = byCat[c.k];
-    if (c.k === "other" && !got.length) return;
+    const wants = wishCat[c.k];
+    if (c.k === "other" && !got.length && !wants.length) return;
     const box = el("div", "cat" + (got.length ? "" : " empty"));
     const head = el("div", "cat-head");
     head.append(el("span", "cat-name", c.name),
-      got.length ? el("span", "pill have", got.length + " 样") : el("span", "pill need", "还缺"));
+      wants.length ? el("span", "pill need", "求带 " + wants.length) : got.length ? el("span", "pill have", got.length + " 样") : el("span", "pill need", "还缺"));
     box.append(head);
-    if (got.length) {
+    if (got.length || wants.length) {
       const ul = el("ul");
       got.forEach(g => { const li = el("li", null, g.text + " "); if (g.qty) li.append(el("span", "q", g.qty + " ")); li.append(el("span", "who", "· " + g.who)); ul.append(li); });
+      wants.forEach(r => ul.append(el("li", "wish-li", "求带：" + String(r.text || "") + (r.qty ? " " + r.qty : "") + "（" + String(r.by || "有人") + "）")));
       box.append(ul);
     } else if (c.eg) box.append(el("p", "hint", "可以带：" + c.eg));
     board.append(box);
@@ -351,7 +488,7 @@ function render() {
           yes.disabled = true; busy = true;
           try {
             const res = await api({ action: "delete", ...me });
-            me = null; saveMe(null); entries = res.entries; fillForm({}); msg(""); render();
+            me = null; saveMe(null); applyState(res); fillForm({}); msg(""); render();
           } catch (err) { tools.append(el("span", "err", "没撤回成功，请再试一次。")); yes.disabled = false; }
           finally { busy = false; }
         });
@@ -370,7 +507,7 @@ async function refresh() {
   if (busy) return;
   try {
     const res = await api();
-    entries = res.entries;
+    applyState(res);
     if (me && !entries.find(e => e.id === me.id)) { me = null; saveMe(null); } // row was removed in the sheet
     const mine = me && entries.find(e => e.id === me.id);
     if (mine && !loadedMine && !formDirty) fillForm(mine);
