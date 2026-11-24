@@ -35,17 +35,9 @@ function spreadsheet_() {
   try {
     return SpreadsheetApp.openById(SPREADSHEET_ID);
   } catch (e) {
-    const lock = LockService.getScriptLock();
-    lock.waitLock(10000);
-    try {
-      const again = props.getProperty('SHEET_ID');
-      if (again) return SpreadsheetApp.openById(again);
-      const ss = SpreadsheetApp.create('感恩节火锅报名');
-      props.setProperty('SHEET_ID', ss.getId());
-      return ss;
-    } finally {
-      lock.releaseLock();
-    }
+    const ss = SpreadsheetApp.create('感恩节火锅报名');
+    props.setProperty('SHEET_ID', ss.getId());
+    return ss;
   }
 }
 
