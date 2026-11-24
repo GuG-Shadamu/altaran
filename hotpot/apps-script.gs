@@ -2,8 +2,9 @@
  * 感恩节火锅 Potluck: the backend for altaran.xyz/hotpot
  *
  * Setup (about 5 minutes):
- * 1. Create a new Google Sheet (any name, e.g. "火锅报名").
- * 2. In the menu choose Extensions > Apps Script. Delete the sample code and paste this whole file in. Save.
+ * 1. Put the Google Sheet's id in SPREADSHEET_ID below.
+ * 2. Go to script.google.com > New project (or, in the sheet, Extensions > Apps Script).
+ *    Delete the sample code and paste this whole file in. Save.
  * 3. Click Deploy > New deployment. For the type, choose "Web app".
  *      Execute as:      Me
  *      Who has access:  Anyone
@@ -16,6 +17,8 @@
  * so the URL stays the same.
  */
 
+// The Google Sheet that stores the sign-ups (the long id in its URL).
+const SPREADSHEET_ID = '1utdz6YAlEtfgYUmhYPTjerUkqPKdugrReDefr8CgyLY';
 const SHEET_NAME = 'signups';
 const HEADERS = ['id', 'token', 'name', 'heads', 'items_json', 'items', 'note', 'updatedAt'];
 const CATS = {
@@ -24,7 +27,7 @@ const CATS = {
 };
 
 function sheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) {
     sh = ss.insertSheet(SHEET_NAME);
